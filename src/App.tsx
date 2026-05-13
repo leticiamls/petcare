@@ -1,10 +1,10 @@
-import { Card, CardCompleta, CardContent, CardTitle } from "./components/ui/card";
+import { Card, CardNovoVet, CardContent, CardTitle } from "./components/ui/card";
 import { Button } from "./components/ui/button";
-import { Edit, Trash2 } from "lucide-react";
+import { Edit, Trash2, X } from "lucide-react";
 
 function App() {
   return (
-<CardCompleta></CardCompleta>
+<CardNovoVet></CardNovoVet>
   )
 }
 
