@@ -13,13 +13,13 @@ const Login = () => {
         event.preventDefault();
 
         const tokenFake = "12345";
-        localStorage.setItem('token', 'tokenFake');
+        localStorage.setItem('token', tokenFake);
 
         alert("Enviando os dados:" + email + " - " + password);
         
         console.log("Iniciando login para:", { email, password });
 
-        navigate('/dashboard')
+        navigate('/Dashboard')
     };
 
     return (
