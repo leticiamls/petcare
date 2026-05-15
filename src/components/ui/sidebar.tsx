@@ -4,7 +4,7 @@ import { SidebarData } from "./sidebarData";
 
 function Sidebar() {
   return (
-    <div className="flex flex-col h-screen w-[305px] bg-ciano border-r-4 border-cianoEscuro">
+    <div className="flex flex-col h-screen w-76.25 bg-ciano border-r-4 border-cianoEscuro">
       {/* Espaço para a Logo ou Título */}
       <div className="p-8 font-titulo text-7xl text-bege self-center">
         PetCare
@@ -18,10 +18,10 @@ function Sidebar() {
                 to={val.link}
                 className={({ isActive }) => cn(
                   "flex items-center gap-4 p-4 rounded-xl font-texto font-semibold transition-all",
-                  "hover:bg-bege/20 hover:translate-x-2",
+                   
                   isActive 
-                    ? "bg-bege text-cianoEscuro shadow-3xl shadow-cianoEscuro border-2 border-cianoEscuro" 
-                    : "text-ciano"
+                    ? "bg-bege/75 text-cianoEscuro shadow-cianoEscuro border-2 border-cianoEscuro"  
+                    : "bg-bege text-cianoEscuro shadow-3xl shadow-cianoEscuro border-2 border-cianoEscuro hover:translate-x-1 hover:translate-y-1 hover:bg-bege/75 hover:shadow-none transition-all" 
                 )}
               >
                 <div className="text-2xl">{val.icon}</div>

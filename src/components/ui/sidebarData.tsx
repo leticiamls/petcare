@@ -5,26 +5,26 @@ export const SidebarData = [
     {
         title: "Dashboard",
         icon: <HomeIcon />,
-        link: ""
+        link: "/Dashboard"
     },
     {
         title: "Pets",
         icon: <PawPrint />,
-        link: ""
+        link: "/pets"
     },
     {
         title: "Clientes",
         icon: <User />,
-        link: ""
+        link: "/clientes"
     },
     {
         title: "Veterinários",
         icon: <Edit />,
-        link: ""
+        link: "/veterinarios"
     },
     {
         title: "Consultas",
         icon: <Edit />,
-        link: ""
+        link: "/consultas"
     }
 ]
