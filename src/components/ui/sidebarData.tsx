@@ -15,16 +15,16 @@ export const SidebarData = [
     {
         title: "Clientes",
         icon: <User />,
-        link: "/clientes"
+        link: "/Clientes"
     },
     {
         title: "Veterinários",
         icon: <Edit />,
-        link: "/veterinarios"
+        link: "/Veterinarios"
     },
     {
         title: "Consultas",
         icon: <Edit />,
-        link: "/consultas"
+        link: "/Consultas"
     }
 ]
