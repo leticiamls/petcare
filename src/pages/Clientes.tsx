@@ -17,8 +17,8 @@ export default function Clientes() {
     <div className="flex flex-col gap-8">
       {/* Cabeçalho da Página */}
       <header className="flex justify-between items-center">
-        <h1 className="text-5xl font-titulo text-cianoEscuro [text-shadow:3px_3px_0px_#000] [-webkit-text-stroke:1.5px_black]">
-          Clientes 👥
+        <h1 className="text-4xl md:text-5xl font-titulo text-ciano tracking-tight [-webkit-text-stroke:1px_black] drop-shadow-[2px_2px_0px_rgba(0,0,0,1)]">
+          Clientes
         </h1>
         <Button className="bg-bege text-black border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:bg-yellow-200">
           + Novo Cliente

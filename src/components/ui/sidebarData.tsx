@@ -7,15 +7,15 @@ export const SidebarData = [
         icon: <HomeIcon />,
         link: "/Dashboard"
     },
+     {
+        title: "Clientes",
+        icon: <User />,
+        link: "/Clientes"
+    },
     {
         title: "Pets",
         icon: <PawPrint />,
         link: "/pets"
-    },
-    {
-        title: "Clientes",
-        icon: <User />,
-        link: "/Clientes"
     },
     {
         title: "Veterinários",

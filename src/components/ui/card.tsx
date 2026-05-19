@@ -102,7 +102,7 @@ export function CardNovoPet({ onClose }: { onClose: () => void }) {
         </div>
         <div className='flex flex-col gap-2'>
           <label className="text-ciano font-bold ml-1 self-start">Nome</label>
-            <input name='nome'type='text' placeholder="Nome do pet" className="w-full p-3 rounded-xl border-2 border-ciano bg-bege text-black focus:ring-2 focus:ring-cianoEscurp outline-none appearance-none"></input>
+            <input name='nome'type='text' placeholder="Nome do pet" className="w-full p-3 rounded-xl border-2 border-ciano bg-bege text-black focus:ring-2 focus:ring-cianoEscuro outline-none appearance-none"></input>
         </div>
         <div className='flex flex-col gap-2'>
           <label className="text-ciano font-bold ml-1 self-start">Tipo</label>

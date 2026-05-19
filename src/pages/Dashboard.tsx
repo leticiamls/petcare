@@ -22,10 +22,10 @@ export default function Dashboard() {
       {/* Cabeçalho */}
       <header className="flex justify-between items-center">
         <div>
-          <h1 className="text-ciano font-texto font-semibold text-5xl p-3">Dashboard</h1>
-          <p className="font-texto text-black/60 mt-2 font-medium">Bem-vinda de volta ao PetCare Manager!</p>
+          <h1 className="text-4xl md:text-5xl font-titulo text-ciano tracking-tight [-webkit-text-stroke:1px_black] drop-shadow-[2px_2px_0px_rgba(0,0,0,1)]">Dashboard</h1>
+          <p className="font-texto text-black/60 mt-2 font-medium">Bem-vindo de volta ao PetCare Manager!</p>
         </div>
-        <Button className="flex gap-2 items-center bg-ciano text-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all">
+        <Button className="flex gap-2 items-center bg-ciano text-white border-2 border-cianoEscuro shadow-3xl hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all">
           <Plus size={20} /> Novo Registro
         </Button>
       </header>
@@ -33,13 +33,13 @@ export default function Dashboard() {
       {/* Seção de Estatísticas (KPIs) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {MOCK_STATS.map((stat, i) => (
-          <div key={i} className="border-4 border-black rounded-3xl p-6 bg-white shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] flex items-center gap-4">
+          <div key={i} className="border-4 border-cianoEscuro rounded-3xl p-6 bg-white shadow-3xl flex items-center gap-4">
             <div className={`p-4 rounded-2xl border-2 border-black ${stat.color}`}>
               {React.cloneElement(stat.icon as React.ReactElement<{ size: number }>, { size: 32 })}
             </div>
             <div>
               <p className="font-texto font-bold text-black/50 text-sm uppercase tracking-wider">{stat.label}</p>
-              <p className="font-titulo text-4xl text-black">{stat.value}</p>
+              <p className="font-titulo text-4xl text-cianoEscuro">{stat.value}</p>
             </div>
           </div>
         ))}
@@ -50,7 +50,7 @@ export default function Dashboard() {
         
         {/* Coluna 1 e 2: Lista de Pets Recentes */}
         <div className="lg:col-span-2 flex flex-col gap-4">
-          <h2 className="text-2xl font-titulo text-black flex items-center gap-2">
+          <h2 className="text-2xl font-titulo text-cianoEscuro flex items-center gap-2">
             <Activity className="text-cianoEscuro" /> Pets Recentes
           </h2>
           
@@ -58,8 +58,8 @@ export default function Dashboard() {
             {MOCK_RECENT_PETS.map((pet) => (
               <Card key={pet.id} className="bg-white p-6 border-2 border-black">
                 <div className="flex justify-between items-start mb-4">
-                  <CardTitle className="text-3xl">{pet.nome}</CardTitle>
-                  <span className="px-3 py-1 bg-bege border-2 border-black rounded-full text-xs font-black uppercase">
+                  <CardTitle className="text-3xl text-ciano">{pet.nome}</CardTitle>
+                  <span className="px-3 py-1 bg-bege border-2 border-cianoEscuro rounded-full text-xs font-black uppercase">
                     {pet.tipo}
                   </span>
                 </div>
@@ -67,7 +67,7 @@ export default function Dashboard() {
                   <p>Dono: <span className="text-black">{pet.dono}</span></p>
                   <p>Status: <span className="text-cianoEscuro">{pet.status}</span></p>
                 </div>
-                <button className="mt-4 w-full py-2 border-2 border-black rounded-xl font-bold hover:bg-ciano hover:text-white transition-colors">
+                <button className="mt-4 w-full py-2 border-2 border-cianoEscuro rounded-xl font-bold hover:bg-ciano hover:text-white transition-colors">
                   Ver Detalhes
                 </button>
               </Card>

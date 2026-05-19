@@ -41,8 +41,8 @@ export default function Veterinarios() {
       {/* Cabeçalho */}
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-5xl font-titulo text-cianoEscuro [text-shadow:3px_3px_0px_#000] [-webkit-text-stroke:1px_black]">
-            Veterinários 🩺
+          <h1 className="text-4xl md:text-5xl font-titulo text-ciano tracking-tight [-webkit-text-stroke:1px_black] drop-shadow-[2px_2px_0px_rgba(0,0,0,1)]">
+            Veterinários
           </h1>
           <p className="font-texto text-black/60 mt-1">Gerencie a equipe de especialistas do PetCare.</p>
         </div>

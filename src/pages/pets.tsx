@@ -21,8 +21,8 @@ export default function Pets() {
     <div className="flex flex-col gap-8">
       {/* Cabeçalho e Busca */}
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <h1 className="text-5xl font-titulo text-cianoEscuro [text-shadow:3px_3px_0px_#000] [-webkit-text-stroke:1px_black]">
-          Meus Pets 🐾
+        <h1 className="text-4xl md:text-5xl font-titulo text-ciano tracking-tight [-webkit-text-stroke:1px_black] drop-shadow-[2px_2px_0px_rgba(0,0,0,1)]">
+          Pets
         </h1>
         
         <div className="flex gap-3 w-full md:w-auto">
