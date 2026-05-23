@@ -1,289 +1,358 @@
-import { useState } from "react";
-import { Calendar, User, FileText, CheckCircle, XCircle, Plus, Stethoscope, Activity, ClipboardList } from "lucide-react";
+import { useEffect, useState } from "react";
+import { api } from "../lib/mockDb";
+import type { Consulta, Pet, Veterinario, Sintoma, Medicamento } from "../lib/mockDb";
+import { auth } from "../lib/auth";
+import { Button } from "../components/ui/button";
+import { Plus, Search, X, CheckCircle, XCircle, Stethoscope, CalendarDays } from "lucide-react";
 
-// Mock adaptado ao formato do Documento de Alinhamento
-const MOCK_CONSULTAS = [
-  {
-    id: 1,
-    data: "2026-05-18",
-    descricao: "Pet apresentou febre alta e desânimo após o passeio.",
-    status: "ABERTA",
-    petNome: "Rex",
-    petEspecie: "Cachorro",
-    veterinarioNome: "Dra. Ana Lima",
-    veterinarioId: 1,
-    sintomas: ["Febre", "Apatia"],
-    medicamentos: []
-  },
-  {
-    id: 2,
-    data: "2026-05-17",
-    descricao: "Retorno para avaliação de dermatite crônica.",
-    status: "FINALIZADA",
-    petNome: "Lola",
-    petEspecie: "Gato",
-    veterinarioNome: "Dr. Carlos Souza",
-    veterinarioId: 2,
-    sintomas: ["Coceira", "Queda de pelo"],
-    medicamentos: ["Pomada Antisséptica", "Shampoo Especial"]
-  },
-  {
-    id: 3,
-    data: "2026-05-16",
-    descricao: "Check-up anual e aplicação de vacina antirrábica.",
-    status: "CANCELADA",
-    petNome: "Pipoca",
-    petEspecie: "Cachorro",
-    veterinarioNome: "Dra. Ana Lima",
-    veterinarioId: 1,
-    sintomas: [],
-    medicamentos: []
-  }
-];
+type StatusFilter = "TODAS" | "ABERTA" | "FINALIZADA" | "CANCELADA";
+
+const STATUS_BADGE: Record<Consulta["status"], string> = {
+  ABERTA:     "bg-yellow-300 border-yellow-600 text-yellow-900",
+  FINALIZADA: "bg-green-300 border-green-700 text-green-900",
+  CANCELADA:  "bg-red-200 border-red-500 text-red-800",
+};
+
+interface EditModal { consulta: Consulta; sintomas: Sintoma[]; medicamentos: Medicamento[] }
 
 export default function Consultas() {
-  // Simulador de Role para desenvolvimento visual fácil
-  const [simularRole, setSimularRole] = useState<"FUNCIONARIO" | "VET">("FUNCIONARIO");
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [consultas, setConsultas] = useState(MOCK_CONSULTAS);
+  const role   = auth.getRole();
+  const vetId  = auth.getVetId();
 
-  // ID fictício do Veterinário logado quando a role for VET
-  const VET_LOGADO_ID = 1; 
+  const [consultas,    setConsultas]    = useState<Consulta[]>([]);
+  const [pets,         setPets]         = useState<Pet[]>([]);
+  const [vets,         setVets]         = useState<Veterinario[]>([]);
+  const [sintomas,     setSintomas]     = useState<Sintoma[]>([]);
+  const [medicamentos, setMedicamentos] = useState<Medicamento[]>([]);
+  const [loading,      setLoading]      = useState(true);
+  const [search,       setSearch]       = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("TODAS");
 
-  // Filtra as consultas caso o usuário simulado seja VET (mostra apenas as dele)
-  const consultasFiltradas = simularRole === "VET" 
-    ? consultas.filter(c => c.veterinarioId === VET_LOGADO_ID)
-    : consultas;
+  // Modal nova consulta (FUNCIONARIO)
+  const [novaModal, setNovaModal] = useState(false);
+  const [novaForm, setNovaForm]   = useState({ petId: "", veterinarioId: "", data: "", descricao: "" });
+  const [saving, setSaving]       = useState(false);
+  const [error, setError]         = useState<string | null>(null);
 
-  const handleCancelar = (id: number) => {
-    setConsultas(prev => prev.map(c => c.id === id ? { ...c, status: "CANCELADA" } : c));
+  // Modal editar consulta (VET)
+  const [editModal, setEditModal]     = useState<EditModal | null>(null);
+  const [selSintomas, setSelSintomas] = useState<number[]>([]);
+  const [selMeds, setSelMeds]         = useState<number[]>([]);
+  const [editDesc, setEditDesc]       = useState("");
+  const [editSaving, setEditSaving]   = useState(false);
+  const [editError, setEditError]     = useState<string | null>(null);
+
+  const load = async () => {
+    const [c, p, v, s, m] = await Promise.all([
+      api.consultas.getAll(),
+      api.pets.getAll(),
+      api.veterinarios.getAll(),
+      api.sintomas.getAll(),
+      api.medicamentos.getAll(),
+    ]);
+    // VET só vê as próprias consultas
+    setConsultas(role === "VET" && vetId ? c.filter((x) => x.veterinarioId === vetId) : c);
+    setPets(p);
+    setVets(v);
+    setSintomas(s);
+    setMedicamentos(m);
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, []);
+
+  const petNome = (id: number) => pets.find((p) => p.id === id)?.nome ?? "—";
+  const vetNome = (id: number) => vets.find((v) => v.id === id)?.nome ?? "—";
+  const sintomasNomes = (ids: number[]) =>
+    ids.map((id) => sintomas.find((s) => s.id === id)?.nome).filter(Boolean).join(", ") || "—";
+  const medsNomes = (ids: number[]) =>
+    ids.map((id) => medicamentos.find((m) => m.id === id)?.nome).filter(Boolean).join(", ") || "—";
+
+  const filtered = consultas.filter((c) => {
+    const matchSearch =
+      petNome(c.petId).toLowerCase().includes(search.toLowerCase()) ||
+      vetNome(c.veterinarioId).toLowerCase().includes(search.toLowerCase()) ||
+      c.descricao.toLowerCase().includes(search.toLowerCase());
+    const matchStatus = statusFilter === "TODAS" || c.status === statusFilter;
+    return matchSearch && matchStatus;
+  });
+
+  // ── Nova consulta ──
+  const handleNova = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSaving(true);
+    try {
+      await api.consultas.create({
+        petId: Number(novaForm.petId),
+        veterinarioId: Number(novaForm.veterinarioId),
+        data: novaForm.data,
+        descricao: novaForm.descricao,
+      });
+      await load();
+      setNovaModal(false);
+      setNovaForm({ petId: "", veterinarioId: "", data: "", descricao: "" });
+    } catch (err: unknown) {
+      setError((err as { mensagem?: string })?.mensagem ?? "Erro ao abrir consulta");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleFinalizar = (id: number) => {
-    setConsultas(prev => prev.map(c => c.id === id ? { ...c, status: "FINALIZADA", medicamentos: ["Antibiótico Vet X"] } : c));
+  // ── Cancelar (FUNCIONARIO) ──
+  const handleCancelar = async (id: number) => {
+    if (!confirm("Cancelar esta consulta?")) return;
+    try {
+      await api.consultas.cancelar(id);
+      load();
+    } catch (err: unknown) {
+      alert((err as { mensagem?: string })?.mensagem ?? "Erro ao cancelar");
+    }
+  };
+
+  // ── Abrir modal edição (VET) ──
+  const openEdit = (c: Consulta) => {
+    setSelSintomas([...c.sintomas]);
+    setSelMeds([...c.medicamentos]);
+    setEditDesc(c.descricao);
+    setEditError(null);
+    setEditModal({ consulta: c, sintomas, medicamentos });
+  };
+
+  const toggleSel = (id: number, list: number[], setter: (v: number[]) => void) => {
+    setter(list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
+  };
+
+  // ── Salvar edição (VET) ──
+  const handleSaveEdit = async () => {
+    if (!editModal) return;
+    setEditError(null);
+    setEditSaving(true);
+    try {
+      await api.consultas.update(editModal.consulta.id, {
+        sintomas: selSintomas,
+        medicamentos: selMeds,
+        descricao: editDesc,
+      });
+      await load();
+      setEditModal(null);
+    } catch (err: unknown) {
+      setEditError((err as { mensagem?: string })?.mensagem ?? "Erro ao salvar");
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  // ── Finalizar (VET) ──
+  const handleFinalizar = async (id: number) => {
+    if (!confirm("Finalizar esta consulta?")) return;
+    try {
+      await api.consultas.finalizar(id);
+      load();
+    } catch (err: unknown) {
+      alert((err as { mensagem?: string })?.mensagem ?? "Erro ao finalizar");
+    }
   };
 
   return (
-    <div className="p-8 font-texto text-black bg-bege/10 min-h-screen w-full">
-      
-      {/* BARRA DE SIMULAÇÃO DE PAPÉIS - EXCLUSIVA PARA OS MOCKS */}
-      
-
-      {/* CABEÇALHO DA PÁGINA */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+    <div className="flex flex-col gap-8">
+      <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-4xl md:text-5xl font-titulo text-ciano tracking-tight [-webkit-text-stroke:1px_black] drop-shadow-[2px_2px_0px_rgba(0,0,0,1)]">
-            Controle de Consultas
+          <h1 className="text-5xl font-titulo text-cianoEscuro [text-shadow:3px_3px_0px_#000] [-webkit-text-stroke:1px_black]">
+            Consultas 📋
           </h1>
-          <p className="text-gray-600 font-medium mt-1">
-            {simularRole === "FUNCIONARIO" ? "Gerenciamento geral de agendamentos e admissões" : "Sua agenda clínica e prontuários para o dia de hoje"}
+          <p className="font-texto text-black/60 mt-1">
+            {role === "VET" ? "Suas consultas atribuídas." : "Gerencie todas as consultas."}
           </p>
         </div>
-
-        {/* Botão de abrir consulta visível APENAS para FUNCIONARIO */}
-        {simularRole === "FUNCIONARIO" && (
-          <button 
-            onClick={() => setIsModalOpen(true)}
-            className="flex items-center gap-2 bg-emerald-400 text-black font-black px-6 py-3 border-4 border-black rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all uppercase"
-          >
-            <Plus size={20} strokeWidth={3} />
-            Abrir Nova Consulta
-          </button>
-        )}
-      </div>
-
-      {/* PAINEL DE CONSULTAS */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-        {consultasFiltradas.map((consulta) => (
-          <div 
-            key={consulta.id}
-            className={`bg-white border-4 border-black rounded-3xl p-6 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] flex flex-col justify-between transition-all hover:-translate-y-1 ${
-              consulta.status === "FINALIZADA" ? "bg-emerald-50/50" : consulta.status === "CANCELADA" ? "bg-rose-50/50 opacity-70" : ""
-            }`}
-          >
-            <div>
-              {/* STATUS BADGE E DATA */}
-              <div className="flex justify-between items-center mb-4">
-                <span className="flex items-center gap-1.5 font-bold text-sm bg-gray-100 border-2 border-black px-2.5 py-1 rounded-xl">
-                  <Calendar size={14} strokeWidth={2.5} />
-                  {consulta.data}
-                </span>
-                <span className={`font-black text-xs border-2 border-black px-3 py-1 rounded-xl tracking-wider uppercase ${
-                  consulta.status === "ABERTA" ? "bg-sky-300" :
-                  consulta.status === "FINALIZADA" ? "bg-emerald-400" : "bg-rose-400"
-                }`}>
-                  {consulta.status}
-                </span>
-              </div>
-
-              {/* DETALHES DO PACIENTE */}
-              <div className="border-2 border-black bg-amber-50/40 p-3 rounded-2xl mb-4 flex justify-between items-center">
-                <div>
-                  <h3 className="font-black text-xl text-cianoEscuro font-titulo tracking-wide">{consulta.petNome}</h3>
-                  <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">{consulta.petEspecie}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-gray-400 font-bold">Médico Responsável</p>
-                  <p className="font-bold text-sm flex items-center gap-1 justify-end">
-                    <User size={14} className="text-black/60" />
-                    {consulta.veterinarioNome}
-                  </p>
-                </div>
-              </div>
-
-              {/* DESCRIÇÃO DA QUEIXA */}
-              <div className="mb-4">
-                <h4 className="text-xs font-black uppercase text-gray-400 tracking-wider mb-1 flex items-center gap-1">
-                  <FileText size={12} /> Queixa Principal
-                </h4>
-                <p className="text-sm font-medium text-gray-800 leading-snug">{consulta.descricao}</p>
-              </div>
-
-              {/* LISTA DE SINTOMAS */}
-              {consulta.sintomas.length > 0 && (
-                <div className="mb-4">
-                  <h4 className="text-xs font-black uppercase text-gray-400 tracking-wider mb-1 flex items-center gap-1">
-                    <Stethoscope size={12} /> Sintomas Observados
-                  </h4>
-                  <div className="flex flex-wrap gap-1.5 mt-1">
-                    {consulta.sintomas.map((sintoma, idx) => (
-                      <span key={idx} className="bg-amber-100/80 border border-black/40 text-xs font-bold px-2 py-0.5 rounded-lg">
-                        {sintoma}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* LISTA DE MEDICAMENTOS RECEITADOS */}
-              {consulta.status === "FINALIZADA" && (
-                <div className="mb-4 bg-emerald-100/40 border-2 border-dashed border-emerald-600/40 p-3 rounded-xl">
-                  <h4 className="text-xs font-black uppercase text-emerald-800 tracking-wider mb-1 flex items-center gap-1">
-                    <ClipboardList size={12} /> Prescrição Médica
-                  </h4>
-                  {consulta.medicamentos.length > 0 ? (
-                    <ul className="text-xs font-bold text-emerald-950 list-disc list-inside">
-                      {consulta.medicamentos.map((med, idx) => <li key={idx}>{med}</li>)}
-                    </ul>
-                  ) : (
-                    <p className="text-xs text-emerald-700 italic font-medium">Nenhum medicamento receitado.</p>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* AÇÕES DINÂMICAS BASEADAS NAS ROLES */}
-            <div className="border-t-2 border-black/10 pt-4 mt-2 flex gap-2">
-              
-              {/* FLUXO DO FUNCIONÁRIO: Pode cancelar se estiver aberta */}
-              {simularRole === "FUNCIONARIO" && consulta.status === "ABERTA" && (
-                <button 
-                  onClick={() => handleCancelar(consulta.id)}
-                  className="w-full flex items-center justify-center gap-2 bg-rose-400 text-black font-bold py-2 px-4 border-2 border-black rounded-xl shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-px hover:translate-y-px hover:shadow-none transition-all text-sm"
-                >
-                  <XCircle size={16} strokeWidth={2.5} />
-                  Cancelar Consulta
-                </button>
-              )}
-
-              {/* FLUXO DO VETERINÁRIO: Pode evoluir e finalizar se estiver aberta */}
-              {simularRole === "VET" && consulta.status === "ABERTA" && (
-                <>
-                  <button 
-                    onClick={() => alert("Modal para adicionar Sintomas/Medicamentos")}
-                    className="flex-1 flex items-center justify-center gap-1.5 bg-sky-300 text-black font-bold py-2 px-3 border-2 border-black rounded-xl shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-px hover:translate-y-px hover:shadow-none transition-all text-xs uppercase"
-                  >
-                    Evoluir
-                  </button>
-                  <button 
-                    onClick={() => handleFinalizar(consulta.id)}
-                    className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-400 text-black font-black py-2 px-3 border-2 border-black rounded-xl shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-px hover:translate-y-px hover:shadow-none transition-all text-xs uppercase"
-                  >
-                    <CheckCircle size={14} strokeWidth={3} />
-                    Finalizar
-                  </button>
-                </>
-              )}
-
-              {/* Mensagem informativa para cards fechados */}
-              {consulta.status !== "ABERTA" && (
-                <div className="w-full text-center text-xs text-gray-400 font-bold uppercase tracking-wider bg-gray-50 py-2 border border-dashed border-gray-300 rounded-xl">
-                  Registro Histórico Bloqueado
-                </div>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* MOCK MODAL: FORMULÁRIO DE ABRIR CONSULTA (FUNCIONÁRIO) */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">
-          <div className="bg-white border-4 border-black rounded-3xl p-6 w-full max-w-md shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] relative">
-            
-            <button 
-              onClick={() => setIsModalOpen(false)}
-              className="absolute top-4 right-4 bg-rose-400 border-2 border-black rounded-xl p-1.5 font-bold shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:translate-x-px hover:translate-y-px hover:shadow-none transition-all"
-            >
-              <XCircle size={18} />
+        <div className="flex gap-3 w-full md:w-auto flex-wrap">
+          {/* Filtro status */}
+          {(["TODAS", "ABERTA", "FINALIZADA", "CANCELADA"] as StatusFilter[]).map((s) => (
+            <button key={s}
+              onClick={() => setStatusFilter(s)}
+              className={`px-3 py-1 text-xs font-black border-2 border-black rounded-full transition-all ${statusFilter === s ? "bg-cianoEscuro text-white" : "bg-white hover:bg-bege"}`}>
+              {s}
             </button>
+          ))}
+          {/* Busca */}
+          <div className="relative flex-1 md:w-56">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-black/40" size={16} />
+            <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar..." className="w-full pl-9 pr-3 py-2 border-2 border-black rounded-xl bg-white focus:ring-2 focus:ring-ciano outline-none font-texto text-sm" />
+          </div>
+          {/* Nova consulta — apenas FUNCIONARIO */}
+          {role === "FUNCIONARIO" && (
+            <Button onClick={() => setNovaModal(true)}
+              className="bg-ciano text-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all">
+              <Plus size={18} /> Nova
+            </Button>
+          )}
+        </div>
+      </header>
 
-            <h2 className="text-2xl font-black font-titulo mb-4 text-cianoEscuro uppercase tracking-wide">Nova Consulta</h2>
-            
-            <form onSubmit={(e) => { e.preventDefault(); setIsModalOpen(false); alert("Consulta agendada no mock!"); }} className="flex flex-col gap-4">
-              <div>
-                <label className="font-bold block mb-1 text-sm">Selecionar Pet (Paciente)</label>
-                <select className="w-full border-2 border-black p-2.5 rounded-xl bg-bege/20 font-medium outline-none">
-                  <option>Rex (Labrador - João Silva)</option>
-                  <option>Lola (Siamês - Maria Souza)</option>
+      {/* Lista */}
+      {loading ? (
+        <div className="flex flex-col gap-4">
+          {[...Array(4)].map((_, i) => <div key={i} className="h-28 rounded-2xl bg-black/10 animate-pulse" />)}
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-20 text-black/40 font-texto text-lg">Nenhuma consulta encontrada.</div>
+      ) : (
+        <div className="flex flex-col gap-4">
+          {filtered.map((c) => (
+            <div key={c.id} className="bg-white border-4 border-black rounded-2xl p-5 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex flex-col md:flex-row gap-4 items-start md:items-center">
+              {/* Info principal */}
+              <div className="flex-1 flex flex-col gap-1">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span className={`text-xs font-black px-3 py-1 rounded-full border-2 ${STATUS_BADGE[c.status]}`}>{c.status}</span>
+                  <span className="font-titulo text-2xl text-black">{petNome(c.petId)}</span>
+                  <span className="text-black/40 text-sm font-texto">com {vetNome(c.veterinarioId)}</span>
+                </div>
+                <p className="font-texto text-black/70 text-sm mt-1">{c.descricao}</p>
+                <div className="flex gap-4 text-xs font-texto font-semibold text-black/50 mt-1 flex-wrap">
+                  <span className="flex items-center gap-1"><CalendarDays size={12} /> {new Date(c.data + "T00:00:00").toLocaleDateString("pt-BR")}</span>
+                  {c.sintomas.length > 0 && <span>Sintomas: {sintomasNomes(c.sintomas)}</span>}
+                  {c.medicamentos.length > 0 && <span>Medicamentos: {medsNomes(c.medicamentos)}</span>}
+                </div>
+              </div>
+
+              {/* Ações */}
+              <div className="flex gap-2 flex-wrap shrink-0">
+                {/* VET: editar + finalizar */}
+                {role === "VET" && c.status === "ABERTA" && (
+                  <>
+                    <button onClick={() => openEdit(c)}
+                      className="flex items-center gap-1 px-3 py-2 border-2 border-black rounded-xl text-xs font-bold bg-bege hover:bg-yellow-200 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all">
+                      <Stethoscope size={14} /> Preencher
+                    </button>
+                    <button onClick={() => handleFinalizar(c.id)}
+                      className="flex items-center gap-1 px-3 py-2 border-2 border-green-700 rounded-xl text-xs font-bold bg-green-300 hover:bg-green-400 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all">
+                      <CheckCircle size={14} /> Finalizar
+                    </button>
+                  </>
+                )}
+                {/* FUNCIONARIO: cancelar */}
+                {role === "FUNCIONARIO" && c.status === "ABERTA" && (
+                  <button onClick={() => handleCancelar(c.id)}
+                    className="flex items-center gap-1 px-3 py-2 border-2 border-red-500 rounded-xl text-xs font-bold bg-red-100 hover:bg-red-200 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all">
+                    <XCircle size={14} /> Cancelar
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Modal: Nova Consulta (FUNCIONARIO) ────────────────────────────── */}
+      {novaModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="relative flex flex-col gap-5 p-8 bg-bege border-4 border-cianoEscuro shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] rounded-[2rem] w-full max-w-md font-texto max-h-[90vh] overflow-y-auto">
+            <button onClick={() => { setNovaModal(false); setError(null); }}
+              className="absolute top-5 right-5 p-1 border-2 border-cianoEscuro rounded-xl hover:bg-red-500 hover:border-red-500 hover:text-white transition-all">
+              <X size={22} />
+            </button>
+            <h2 className="font-titulo text-ciano text-4xl">Abrir Consulta</h2>
+
+            <form onSubmit={handleNova} className="flex flex-col gap-4">
+              <div className="flex flex-col gap-1">
+                <label className="text-ciano font-bold text-sm ml-1">Pet</label>
+                <select required value={novaForm.petId} onChange={(e) => setNovaForm((f) => ({ ...f, petId: e.target.value }))}
+                  className="w-full p-3 rounded-xl border-2 border-ciano bg-white text-black focus:ring-2 focus:ring-cianoEscuro outline-none">
+                  <option value="">Selecione o pet</option>
+                  {pets.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
                 </select>
               </div>
-
-              <div>
-                <label className="font-bold block mb-1 text-sm">Veterinário Plantonista</label>
-                <select className="w-full border-2 border-black p-2.5 rounded-xl bg-bege/20 font-medium outline-none">
-                  <option>Dra. Ana Lima (Clínica Geral)</option>
-                  <option>Dr. Carlos Souza (Cirurgião)</option>
+              <div className="flex flex-col gap-1">
+                <label className="text-ciano font-bold text-sm ml-1">Veterinário</label>
+                <select required value={novaForm.veterinarioId} onChange={(e) => setNovaForm((f) => ({ ...f, veterinarioId: e.target.value }))}
+                  className="w-full p-3 rounded-xl border-2 border-ciano bg-white text-black focus:ring-2 focus:ring-cianoEscuro outline-none">
+                  <option value="">Selecione o veterinário</option>
+                  {vets.map((v) => <option key={v.id} value={v.id}>{v.nome}</option>)}
                 </select>
               </div>
-
-              <div>
-                <label className="font-bold block mb-1 text-sm">Data do Atendimento</label>
-                <input type="date" defaultValue="2026-05-18" className="w-full border-2 border-black p-2.5 rounded-xl font-medium outline-none" />
+              <div className="flex flex-col gap-1">
+                <label className="text-ciano font-bold text-sm ml-1">Data</label>
+                <input type="date" required value={novaForm.data} onChange={(e) => setNovaForm((f) => ({ ...f, data: e.target.value }))}
+                  className="w-full p-3 rounded-xl border-2 border-ciano bg-white text-black focus:ring-2 focus:ring-cianoEscuro outline-none" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-ciano font-bold text-sm ml-1">Descrição / Motivo</label>
+                <textarea required rows={3} value={novaForm.descricao} onChange={(e) => setNovaForm((f) => ({ ...f, descricao: e.target.value }))}
+                  placeholder="Ex.: Pet apresentou febre e apatia..."
+                  className="w-full p-3 rounded-xl border-2 border-ciano bg-white text-black focus:ring-2 focus:ring-cianoEscuro outline-none resize-none" />
               </div>
 
-              <div>
-                <label className="font-bold block mb-1 text-sm">Queixa Inicial/Descrição</label>
-                <textarea rows={3} placeholder="Descreva brevemente o motivo da consulta..." className="w-full border-2 border-black p-2.5 rounded-xl font-medium outline-none resize-none"></textarea>
-              </div>
-
-              <button type="submit" className="bg-emerald-400 text-black font-black p-3 border-2 border-black rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:translate-x-px hover:translate-y-px hover:shadow-none transition-all uppercase mt-2">
-                Confirmar Agendamento
-              </button>
+              {error && <p className="text-red-500 text-sm font-semibold text-center bg-red-50 border border-red-200 rounded-xl p-2">{error}</p>}
+              <Button variant="primary" type="submit" disabled={saving} className="mt-1 w-full justify-center">
+                {saving ? "Abrindo..." : "Abrir Consulta"}
+              </Button>
             </form>
           </div>
         </div>
       )}
-      <div className="mb-8 p-4 bg-amber-100 border-4 border-black rounded-2xl flex items-center justify-between shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-        <div className="flex items-center gap-2">
-          <Activity className="text-amber-600 animate-pulse" size={24} />
-          <span className="font-bold font-titulo uppercase tracking-wider text-sm text-amber-900">Ambiente de Teste: Alternar Visão</span>
+
+      {/* ── Modal: Editar Consulta (VET) ──────────────────────────────────── */}
+      {editModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="relative flex flex-col gap-5 p-8 bg-bege border-4 border-cianoEscuro shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] rounded-[2rem] w-full max-w-lg font-texto max-h-[90vh] overflow-y-auto">
+            <button onClick={() => setEditModal(null)}
+              className="absolute top-5 right-5 p-1 border-2 border-cianoEscuro rounded-xl hover:bg-red-500 hover:border-red-500 hover:text-white transition-all">
+              <X size={22} />
+            </button>
+            <h2 className="font-titulo text-ciano text-4xl">Preencher Consulta</h2>
+            <p className="text-black/60 font-texto text-sm -mt-2">
+              Pet: <b>{petNome(editModal.consulta.petId)}</b>
+            </p>
+
+            {/* Descrição */}
+            <div className="flex flex-col gap-1">
+              <label className="text-ciano font-bold text-sm ml-1">Descrição</label>
+              <textarea rows={3} value={editDesc} onChange={(e) => setEditDesc(e.target.value)}
+                className="w-full p-3 rounded-xl border-2 border-ciano bg-white text-black focus:ring-2 focus:ring-cianoEscuro outline-none resize-none" />
+            </div>
+
+            {/* Sintomas */}
+            <div className="flex flex-col gap-2">
+              <label className="text-ciano font-bold text-sm ml-1">Sintomas</label>
+              <div className="flex flex-wrap gap-2">
+                {sintomas.map((s) => (
+                  <button key={s.id} type="button"
+                    onClick={() => toggleSel(s.id, selSintomas, setSelSintomas)}
+                    className={`px-3 py-1.5 border-2 border-black rounded-full text-xs font-bold transition-all ${selSintomas.includes(s.id) ? "bg-cianoEscuro text-white" : "bg-white hover:bg-bege"}`}>
+                    {s.nome}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Medicamentos */}
+            <div className="flex flex-col gap-2">
+              <label className="text-ciano font-bold text-sm ml-1">Medicamentos</label>
+              <div className="flex flex-wrap gap-2">
+                {medicamentos.map((m) => (
+                  <button key={m.id} type="button"
+                    onClick={() => toggleSel(m.id, selMeds, setSelMeds)}
+                    className={`px-3 py-1.5 border-2 border-black rounded-full text-xs font-bold transition-all ${selMeds.includes(m.id) ? "bg-green-600 text-white" : "bg-white hover:bg-bege"}`}>
+                    {m.nome} <span className="font-normal opacity-70">{medicamentos.find((x) => x.id === m.id)?.dose}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {editError && <p className="text-red-500 text-sm font-semibold text-center bg-red-50 border border-red-200 rounded-xl p-2">{editError}</p>}
+
+            <div className="flex gap-3">
+              <Button variant="primary" onClick={handleSaveEdit} disabled={editSaving} className="flex-1 justify-center">
+                {editSaving ? "Salvando..." : "Salvar"}
+              </Button>
+              <button onClick={() => handleFinalizar(editModal.consulta.id)}
+                className="flex-1 py-2 border-2 border-green-700 rounded-xl text-sm font-bold bg-green-300 hover:bg-green-400 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all flex items-center justify-center gap-2">
+                <CheckCircle size={16} /> Finalizar
+              </button>
+            </div>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <button 
-            onClick={() => setSimularRole("FUNCIONARIO")}
-            className={`px-4 py-2 border-2 border-black font-bold rounded-xl transition-all ${simularRole === "FUNCIONARIO" ? "bg-black text-white shadow-none" : "bg-white text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"}`}
-          >
-            Visão: Funcionário (Recepção)
-          </button>
-          <button 
-            onClick={() => setSimularRole("VET")}
-            className={`px-4 py-2 border-2 border-black font-bold rounded-xl transition-all ${simularRole === "VET" ? "bg-black text-white shadow-none" : "bg-white text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"}`}
-          >
-            Visão: Veterinário (Dra. Ana)
-          </button>
-        </div>
-      </div>
+      )}
     </div>
   );
 }
