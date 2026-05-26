@@ -12,6 +12,7 @@ import Equipe from "./pages/Equipe";
 function MainLayout() {
   return (
     <div className="flex w-full h-screen overflow-hidden bg-bege">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" /> <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       <Sidebar />
       <main className="flex-1 h-full overflow-y-auto p-8">
         <Outlet />
