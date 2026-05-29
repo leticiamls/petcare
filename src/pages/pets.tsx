@@ -79,8 +79,8 @@ export default function Pets() {
   return (
     <div className="flex flex-col gap-8">
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <h1 className="text-5xl font-titulo text-cianoEscuro [text-shadow:3px_3px_0px_#000] [-webkit-text-stroke:1px_black]">
-          Pets 🐾
+        <h1 className="text-ciano font-texto font-semibold text-5xl p-3">
+          Pets
         </h1>
         <div className="flex gap-3 w-full md:w-auto">
           <div className="relative flex-1 md:w-72">

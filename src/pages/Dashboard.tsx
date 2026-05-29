@@ -51,15 +51,15 @@ export default function Dashboard() {
           {[...Array(4)].map((_, i) => <div key={i} className="h-28 rounded-3xl bg-black/10 animate-pulse" />)}
         </div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-6">
           {kpis.map((stat, i) => (
-            <div key={i} className="border-4 border-black rounded-3xl p-6 bg-white shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] flex items-center gap-4">
-              <div className={`p-3 rounded-2xl border-2 border-black ${stat.color}`}>
+            <div key={i} className="border-4 border-cianoEscuro rounded-3xl p-4 md:p-6 bg-white shadow-3xl flex items-center gap-3 md:gap-4 overflow-hidden">
+              <div className={`shrink-0 p-2 md:p-3 rounded-2xl border-2 border-cianoEscuro ${stat.color}`}>
                 {stat.icon}
               </div>
-              <div>
-                <p className="font-texto font-bold text-black/50 text-xs uppercase tracking-wider">{stat.label}</p>
-                <p className="font-titulo text-4xl text-black">{String(stat.value).padStart(2, "0")}</p>
+              <div className="flex-1 min-w-0">
+                <p className="font-texto font-bold text-black/50 text-[10px] md:text-xs uppercase tracking-wider truncate">{stat.label}</p>
+                <p className="font-titulo text-2xl md:text-4xl text-black truncate">{String(stat.value).padStart(2, "0")}</p>
               </div>
             </div>
           ))}

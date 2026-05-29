@@ -62,8 +62,8 @@ export default function Veterinarios() {
     <div className="flex flex-col gap-8">
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-5xl font-titulo text-cianoEscuro [text-shadow:3px_3px_0px_#000] [-webkit-text-stroke:1px_black]">
-            Veterinários 🩺
+          <h1 className="text-ciano font-texto font-semibold text-5xl p-3">
+            Veterinários
           </h1>
           <p className="font-texto text-black/60 mt-1">Gerencie a equipe de especialistas do PetCare.</p>
         </div>
