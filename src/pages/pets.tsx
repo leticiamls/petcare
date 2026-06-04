@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { api } from "../lib/mockDb";
 import type { Pet, Cliente } from "../lib/mockDb";
 import { Button } from "../components/ui/button";
+import { Header } from "../components/ui/header";
 import { Dog, Cat, Plus, Search, X, Trash2, Rabbit } from "lucide-react";
 
 const PetIcon = ({ especie }: { especie: Pet["especie"] }) => {
-  if (especie === "Gato") return <Cat size={32} />;
+  if (especie === "Gato") return <Cat size={32}/>;
   if (especie === "Cachorro") return <Dog size={32} />;
   return <Rabbit size={32} />;
 };
@@ -78,29 +79,14 @@ export default function Pets() {
 
   return (
     <div className="flex flex-col gap-8">
-      <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <h1 className="text-ciano font-texto font-semibold text-5xl p-3">
-          Pets
-        </h1>
-        <div className="flex gap-3 w-full md:w-auto">
-          <div className="relative flex-1 md:w-72">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-black/40" size={18} />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar por nome, raça ou espécie..."
-              className="w-full pl-10 pr-4 py-2 border-2 border-black rounded-xl bg-white focus:ring-2 focus:ring-ciano outline-none font-texto"
-            />
-          </div>
-          <Button
-            onClick={() => setModal(true)}
-            className="bg-ciano text-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all"
-          >
-            <Plus size={20} /> Novo
-          </Button>
-        </div>
-      </header>
+      <Header 
+        title="Pets"
+        buttonText="Novo Pet"
+        searchPlaceholder="Buscar por nome do pet"
+        search={search}
+        setSearch={setSearch}
+        onActionClick={() => setModal(true)} 
+      />
 
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -113,33 +99,37 @@ export default function Pets() {
           {filtered.map((pet) => (
             <div
               key={pet.id}
-              className="bg-ciano border-4 border-black rounded-3xl p-6 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] flex flex-col gap-3"
+              className="bg-white border-4 border-cianoEscuro rounded-3xl p-6 shadow-3xl flex flex-col gap-3"
             >
-              <div className="flex justify-between items-start">
-                <div className="p-3 bg-bege border-2 border-black rounded-2xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
+            <div className="flex w-full items-center gap-3 border-b-2 border-cianoEscuro pb-3">
+               <div className="p-2 bg-ciano border-2 border-cianoEscuro rounded-lg">
                   <PetIcon especie={pet.especie} />
-                </div>
-                <span className="text-xs font-black bg-bege border-2 border-black px-3 py-1 rounded-full uppercase">{pet.especie}</span>
+               </div>
+
+               <h3 className="font-titulo text-cianoEscuro truncate text-4xl">
+                {pet.nome}
+               </h3>
+
+                <span className="ml-auto text-xs font-black bg-ciano border-2 border-cianoEscuro px-3 py-1 rounded-full uppercase">
+                  {pet.especie}
+                </span>
+            </div>
+
+              <div className="font-texto font-semibold text-cianoEscuro text-sm space-y-1">
+                <p>Raça: <span className="text-cianoEscuro font-bold">{pet.raca}</span></p>
+                <p>Idade: <span className="text-cianoEscuro font-bold">{calcAge(pet.dataNascimento)}</span></p>
+                <p>Tutor: <span className="text-cianoEscuro font-bold">{clienteNome(pet.clienteId)}</span></p>
               </div>
 
-              <h3 className="font-titulo text-bege text-4xl">{pet.nome}</h3>
-
-              <div className="font-texto font-semibold text-bege/80 text-sm space-y-1">
-                <p>Raça: <span className="text-bege">{pet.raca}</span></p>
-                <p>Idade: <span className="text-bege">{calcAge(pet.dataNascimento)}</span></p>
-                <p>Tutor: <span className="text-bege">{clienteNome(pet.clienteId)}</span></p>
-              </div>
-
-              <div className="mt-auto pt-3 border-t-2 border-bege/20 flex justify-between items-center">
-                <span className="text-xs font-bold text-bege/60 uppercase">
+              <div className="mt-auto pt-3 flex justify-between items-center">
+                <span className="text-xs font-bold text-cianoEscuro uppercase self-end">
                   Nasc.: {new Date(pet.dataNascimento + "T00:00:00").toLocaleDateString("pt-BR")}
                 </span>
-                <button
-                  onClick={() => handleDelete(pet.id)}
-                  className="flex items-center gap-1 text-xs font-bold text-red-300 hover:text-red-100 transition-colors"
+                <Button variant= "exclude"
+                  onClick={() => handleDelete(pet.id)} 
                 >
                   <Trash2 size={14} /> Inativar
-                </button>
+                </Button>
               </div>
             </div>
           ))}

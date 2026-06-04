@@ -3,6 +3,7 @@ import { api } from "../lib/mockDb";
 import type { Consulta, Pet, Veterinario, Sintoma, Medicamento } from "../lib/mockDb";
 import { auth } from "../lib/auth";
 import { Button } from "../components/ui/button";
+import { Header } from "../components/ui/header";
 import { Plus, Search, X, CheckCircle, XCircle, Stethoscope, CalendarDays } from "lucide-react";
 
 type StatusFilter = "TODAS" | "ABERTA" | "FINALIZADA" | "CANCELADA";
@@ -155,41 +156,14 @@ export default function Consultas() {
 
   return (
     <div className="flex flex-col gap-8">
-      <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-ciano font-texto font-semibold text-5xl p-3">
-            Consultas 📋
-          </h1>
-          <p className="font-texto text-black/60 mt-1">
-            {role === "VET" ? "Suas consultas atribuídas." : "Gerencie todas as consultas."}
-          </p>
-        </div>
-        <div className="flex gap-3 w-full md:w-auto flex-wrap">
-          {/* Filtro status */}
-          {(["TODAS", "ABERTA", "FINALIZADA", "CANCELADA"] as StatusFilter[]).map((s) => (
-            <button key={s}
-              onClick={() => setStatusFilter(s)}
-              className={`px-3 py-1 text-xs font-black border-2 border-black rounded-full transition-all ${statusFilter === s ? "bg-cianoEscuro text-white" : "bg-white hover:bg-bege"}`}>
-              {s}
-            </button>
-          ))}
-          {/* Busca */}
-          <div className="relative flex-1 md:w-56">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-black/40" size={16} />
-            <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar..." className="w-full pl-9 pr-3 py-2 border-2 border-black rounded-xl bg-white focus:ring-2 focus:ring-ciano outline-none font-texto text-sm" />
-          </div>
-          {/* Nova consulta — apenas FUNCIONARIO */}
-          {role === "FUNCIONARIO" && (
-            <Button onClick={() => setNovaModal(true)}
-              className="bg-ciano text-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all">
-              <Plus size={18} /> Nova
-            </Button>
-          )}
-        </div>
-      </header>
-
-      {/* Lista */}
+      <Header 
+        title="Consultas"
+        buttonText="Nova Consulta"
+        searchPlaceholder="Buscar por CPF"
+        search={search}
+        setSearch={setSearch}
+        onActionClick={() => setNovaModal(true)} 
+      />
       {loading ? (
         <div className="flex flex-col gap-4">
           {[...Array(4)].map((_, i) => <div key={i} className="h-28 rounded-2xl bg-black/10 animate-pulse" />)}

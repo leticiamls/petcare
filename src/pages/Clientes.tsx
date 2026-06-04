@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { api } from "../lib/mockDb";
 import type { Cliente } from "../lib/mockDb";
 import { Button } from "../components/ui/button";
-import { User, Phone, Plus, Search, X, Trash2 } from "lucide-react";
+import { Header } from "../components/ui/header";
+import { User, Phone, X, Trash2, Pencil } from "lucide-react";
 
 function formatPhone(tel: string) {
   const d = tel.replace(/\D/g, "");
@@ -17,11 +18,17 @@ function formatCpf(cpf: string) {
   return cpf;
 }
 
-interface FormState { nome: string; cpf: string; telefone: string }
+interface FormState { 
+  nome: string; 
+  cpf: string; 
+  telefone: string; 
+}
+
 const emptyForm: FormState = { nome: "", cpf: "", telefone: "" };
 
 export default function Clientes() {
   const [clientes, setClientes]   = useState<Cliente[]>([]);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [loading, setLoading]     = useState(true);
   const [search, setSearch]       = useState("");
   const [modal, setModal]         = useState(false);
@@ -30,29 +37,47 @@ export default function Clientes() {
   const [error, setError]         = useState<string | null>(null);
 
   const load = () => api.clientes.getAll().then(setClientes).finally(() => setLoading(false));
-  useEffect(() => { load(); }, []);
+  
+  useEffect(() => { 
+    load(); 
+  }, []);
 
   const filtered = clientes.filter((c) =>
     c.nome.toLowerCase().includes(search.toLowerCase()) ||
     c.cpf.includes(search)
   );
 
+  const fecharModal = () => {
+    setModal(false);
+    setForm(emptyForm);
+    setEditingId(null);
+    setError(null);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSaving(true);
+    
     try {
-      await api.clientes.create({
+      const payload = {
         nome: form.nome,
         cpf: formatCpf(form.cpf),
         telefone: form.telefone.replace(/\D/g, ""),
-      });
+      };
+
+      if (editingId) {
+        await api.clientes.update(editingId, payload);
+      } else {
+        await api.clientes.create(payload);
+      }
+      
       await load();
-      setModal(false);
-      setForm(emptyForm);
+      fecharModal();
+      
     } catch (err: unknown) {
       const e = err as { mensagem?: string };
-      setError(e?.mensagem ?? "Erro ao cadastrar cliente");
+      setError(e?.mensagem ?? "Erro ao salvar cliente");
     } finally {
       setSaving(false);
     }
@@ -64,35 +89,32 @@ export default function Clientes() {
     load();
   };
 
+  const handleEdit = (cliente: Cliente) => {
+    setForm({
+      nome: cliente.nome,
+      cpf: cliente.cpf, 
+      telefone: cliente.telefone,
+    });
+    setEditingId(cliente.id);
+    setModal(true);
+  };
+
   return (
     <div className="flex flex-col gap-8">
-      <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <h1 className="text-ciano font-texto font-semibold text-5xl p-3">
-          Clientes
-        </h1>
-        <div className="flex gap-3 w-full md:w-auto">
-          <div className="relative flex-1 md:w-72">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-black/40" size={18} />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar por nome ou CPF..."
-              className="w-full pl-10 pr-4 py-2 border-2 border-black rounded-xl bg-white focus:ring-2 focus:ring-ciano outline-none font-texto"
-            />
-          </div>
-          <Button
-            onClick={() => setModal(true)}
-            className="bg-ciano text-white border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all"
-          >
-            <Plus size={20} /> Novo
-          </Button>
-        </div>
-      </header>
+      <Header 
+        title="Clientes"
+        buttonText="Novo Cliente"
+        searchPlaceholder="Buscar por CPF"
+        search={search}
+        setSearch={setSearch}
+        onActionClick={() => setModal(true)}
+      />
 
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[...Array(4)].map((_, i) => <div key={i} className="h-44 rounded-3xl bg-black/10 animate-pulse" />)}
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="h-44 rounded-3xl bg-black/10 animate-pulse" />
+          ))}
         </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-20 text-black/40 font-texto text-lg">
@@ -101,31 +123,49 @@ export default function Clientes() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filtered.map((c) => (
-            <div key={c.id} className="bg-white border-4 border-black rounded-3xl p-6 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] flex flex-col gap-3 hover:rotate-1 transition-transform">
-              <div className="flex items-center gap-3 border-b-2 border-black pb-3">
-                <div className="p-2 bg-ciano rounded-lg border-2 border-black">
+            <div key={c.id} className="bg-white border-4 border-cianoEscuro rounded-3xl p-6 shadow-3xl flex flex-col gap-3">
+              
+              {/* Cabeçalho do Card */}
+              <div className="flex items-center gap-3 border-b-2 border-ci pb-3">
+                <div className="p-2 bg-ciano rounded-lg border-2 border-cianoEscuro">
                   <User size={22} className="text-white" />
                 </div>
-                <h3 className="font-titulo text-2xl text-black truncate">{c.nome}</h3>
+                <h3 className="font-titulo text-2xl text-cianoEscuro truncate">{c.nome}</h3>
               </div>
-              <div className="flex flex-col gap-2 font-texto text-black/80 text-sm">
+              
+              {/* Informações */}
+              <div className="flex flex-col gap-2 font-texto text-cianoEscuro text-sm">
                 <div className="flex items-center gap-2">
                   <Phone size={16} className="text-cianoEscuro" />
                   <span className="font-semibold">{formatPhone(c.telefone)}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-black/40 text-xs font-bold uppercase">CPF</span>
-                  <span className="text-sm">{c.cpf}</span>
+                  <span className="text-cianoEscuro text-xs uppercase">CPF</span>
+                  <span className="text-sm font-semibold">{c.cpf}</span>
                 </div>
               </div>
-              <div className="mt-auto pt-2">
-                <button
-                  onClick={() => handleDelete(c.id)}
-                  className="flex items-center gap-1 text-xs font-bold text-red-500 hover:text-red-700 transition-colors"
+              
+              {/* Botões do Card */}
+              <div className="mt-auto pt-2 flex flex-col sm:flex-row gap-2 w-full">
+                <Button 
+                  variant="primary"
+                  onClick={() => handleEdit(c)}
+                  className="flex-1 px-2 text-sm md:text-base hover:bg-cianoEscuro"
                 >
-                  <Trash2 size={14} /> Inativar
-                </button>
+                  <Pencil size={16} strokeWidth={2.5} /> 
+                  <span>Editar</span>
+                </Button>
+
+                <Button 
+                  variant="exclude"
+                  onClick={() => handleDelete(c.id)}
+                  className="flex-1 px-2 text-sm md:text-base hover:bg-red-900" 
+                >
+                  <Trash2 size={16} strokeWidth={2.5} /> 
+                  <span>Inativar</span>
+                </Button>
               </div>
+
             </div>
           ))}
         </div>
@@ -134,38 +174,54 @@ export default function Clientes() {
       {/* Modal */}
       {modal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="relative flex flex-col gap-5 p-8 bg-bege border-4 border-cianoEscuro shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] rounded-[2rem] w-full max-w-md font-texto">
-            <button onClick={() => { setModal(false); setForm(emptyForm); setError(null); }}
-              className="absolute top-5 right-5 p-1 border-2 border-cianoEscuro rounded-xl hover:bg-red-500 hover:border-red-500 hover:text-white transition-all">
+          <div className="relative flex flex-col gap-5 p-8 bg-bege border-4 border-cianoEscuro shadow-3xl rounded-3xl w-full max-w-md font-texto">
+            
+            <button 
+              onClick={fecharModal}
+              className="absolute top-5 right-5 p-1 border-2 border-cianoEscuro rounded-xl hover:bg-red-500 hover:border-red-500 hover:text-white transition-all"
+            >
               <X size={22} />
             </button>
-            <h2 className="font-titulo text-ciano text-4xl">Novo Cliente</h2>
+            
+            <h2 className="font-titulo text-ciano text-4xl">
+               {editingId ? "Editar Cliente" : "Novo Cliente"}
+            </h2>
 
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-              {[
-                { label: "Nome completo", name: "nome", type: "text", placeholder: "João da Silva", required: true },
-                { label: "CPF",          name: "cpf",  type: "text", placeholder: "000.000.000-00", required: true },
-                { label: "Telefone",     name: "telefone", type: "tel", placeholder: "(85) 99999-9999", required: true },
-              ].map(({ label, name, type, placeholder, required }) => (
+              {(
+                [
+                  { label: "Nome completo", name: "nome", type: "text", placeholder: "João da Silva" },
+                  { label: "CPF", name: "cpf", type: "text", placeholder: "000.000.000-00" },
+                  { label: "Telefone", name: "telefone", type: "tel", placeholder: "(85) 99999-9999" },
+                ] as const
+              ).map(({ label, name, type, placeholder }) => (
                 <div key={name} className="flex flex-col gap-1">
                   <label className="text-ciano font-bold text-sm ml-1">{label}</label>
                   <input
                     type={type}
                     placeholder={placeholder}
-                    required={required}
-                    value={(form as unknown as Record<string, string>)[name]}
+                    required
+                    value={form[name]}
                     onChange={(e) => setForm((f) => ({ ...f, [name]: e.target.value }))}
                     className="w-full p-3 rounded-xl border-2 border-ciano bg-white text-black focus:ring-2 focus:ring-cianoEscuro outline-none"
                   />
                 </div>
               ))}
 
-              {error && <p className="text-red-500 text-sm font-semibold text-center bg-red-50 border border-red-200 rounded-xl p-2">{error}</p>}
+              {error && (
+                <p className="text-red-500 text-sm font-semibold text-center bg-red-50 border border-red-200 rounded-xl p-2">
+                  {error}
+                </p>
+              )}
 
               <Button variant="primary" type="submit" disabled={saving} className="mt-1 w-full justify-center">
-                {saving ? "Cadastrando..." : "Cadastrar"}
+                {saving 
+                  ? (editingId ? "A salvar..." : "A cadastrar...") 
+                  : (editingId ? "Salvar Alterações" : "Cadastrar")
+                }
               </Button>
             </form>
+
           </div>
         </div>
       )}
