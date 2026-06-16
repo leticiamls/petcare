@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api } from "../lib/mockDb";
-import { auth } from "../lib/auth";
+import { BASE_URL } from "../lib/api";
 import { Button } from "../components/ui/button";
 import { CardTitle } from "../components/ui/card";
 
@@ -16,13 +15,42 @@ export default function Login() {
     e.preventDefault();
     setError(null);
     setLoading(true);
+    
     try {
-      const session = await api.auth.login(username, password);
-      auth.save(session);
-      navigate("/dashboard");
-    } catch (err: unknown) {
-      const e = err as { mensagem?: string };
-      setError(e?.mensagem ?? "Erro ao fazer login");
+      const resposta = await fetch(`${BASE_URL}/auth/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "ngrok-skip-browser-warning": "true"
+        },
+        body: JSON.stringify({ username, password })
+      });
+      
+      if (!resposta.ok) {
+        const errData = await resposta.json().catch(() => ({}));
+        throw new Error(errData.mensagem || "Usuário ou senha incorretos.");
+      }
+
+      const dados = await resposta.json();
+      
+      // 👀 O NOSSO ESPIÃO: Veja no Console (F12) o que o Java devolveu!
+      console.log("ESPIÃO DO LOGIN - DADOS DO JAVA:", dados);
+
+      localStorage.setItem("token", dados.token);
+      localStorage.setItem("role", dados.role);
+      localStorage.setItem("username", dados.username);
+      
+      if (dados.veterinarioId) {
+        localStorage.setItem("veterinarioId", String(dados.veterinarioId));
+      } else {
+        localStorage.removeItem("veterinarioId");
+      }
+
+      // 🎯 CORREÇÃO: "D" maiúsculo para bater com a rota do App.tsx
+      navigate("/Dashboard"); 
+
+    } catch (err: any) {
+      setError(err.message || "Erro ao fazer login");
     } finally {
       setLoading(false);
     }
@@ -74,14 +102,10 @@ export default function Login() {
           </Button>
         </form>
 
-        {/* Dica de usuários para o mock */}
         <details className="text-xs text-black/40 font-texto mt-2">
           <summary className="cursor-pointer hover:text-black/60">Usuários de teste</summary>
           <div className="mt-2 space-y-1 bg-black/5 rounded-xl p-3">
             <p><b>admin</b> / admin123 → ADMIN</p>
-            <p><b>funcionario</b> / func123 → FUNCIONARIO</p>
-            <p><b>vet.ana</b> / vet123 → VET</p>
-            <p><b>vet.marcos</b> / vet456 → VET</p>
           </div>
         </details>
       </div>

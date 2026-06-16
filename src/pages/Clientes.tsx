@@ -1,9 +1,25 @@
 import { useEffect, useState } from "react";
-import { api } from "../lib/mockDb";
-import type { Cliente } from "../lib/mockDb";
+import { BASE_URL } from "../lib/api";
 import { Button } from "../components/ui/button";
 import { Header } from "../components/ui/header";
 import { User, Phone, X, Trash2, Pencil } from "lucide-react";
+
+// 1. Mantemos apenas a interface real (removemos a importação do mockDb)
+interface Cliente {
+  id: number;
+  nome: string;
+  cpf: string;
+  telefone: string;
+  ativo: boolean;
+}
+
+interface FormState { 
+  nome: string; 
+  cpf: string; 
+  telefone: string; 
+}
+
+const emptyForm: FormState = { nome: "", cpf: "", telefone: "" };
 
 function formatPhone(tel: string) {
   const d = tel.replace(/\D/g, "");
@@ -18,14 +34,6 @@ function formatCpf(cpf: string) {
   return cpf;
 }
 
-interface FormState { 
-  nome: string; 
-  cpf: string; 
-  telefone: string; 
-}
-
-const emptyForm: FormState = { nome: "", cpf: "", telefone: "" };
-
 export default function Clientes() {
   const [clientes, setClientes]   = useState<Cliente[]>([]);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -36,12 +44,35 @@ export default function Clientes() {
   const [saving, setSaving]       = useState(false);
   const [error, setError]         = useState<string | null>(null);
 
-  const load = () => api.clientes.getAll().then(setClientes).finally(() => setLoading(false));
+  const getHeaders = () => {
+    const token = localStorage.getItem("token");
+    return {
+      "Content-Type": "application/json",
+      "ngrok-skip-browser-warning": "true",
+      "Authorization": token ? `Bearer ${token}` : ""
+    };
+  };
+
+  const loadClientes = () => {
+    setLoading(true);
+    fetch(`${BASE_URL}/clientes`, {
+      method: "GET",
+      headers: getHeaders() // 2. Correção: Injetando o Token corretamente
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error("Falha ao buscar clientes.");
+        return res.json();
+      })
+      .then((dados) => setClientes(dados))
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
+  };
   
   useEffect(() => { 
-    load(); 
+    loadClientes(); 
   }, []);
 
+  // 3. Correção: Nome da variável unificado para "filtered" para bater com o HTML
   const filtered = clientes.filter((c) =>
     c.nome.toLowerCase().includes(search.toLowerCase()) ||
     c.cpf.includes(search)
@@ -52,6 +83,12 @@ export default function Clientes() {
     setForm(emptyForm);
     setEditingId(null);
     setError(null);
+  };
+
+  const handleEdit = (cliente: Cliente) => {
+    setForm({ nome: cliente.nome, cpf: cliente.cpf, telefone: cliente.telefone });
+    setEditingId(cliente.id);
+    setModal(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -66,39 +103,49 @@ export default function Clientes() {
         telefone: form.telefone.replace(/\D/g, ""),
       };
 
-      if (editingId) {
-        await api.clientes.update(editingId, payload);
-      } else {
-        await api.clientes.create(payload);
+      const url = editingId ? `${BASE_URL}/clientes/${editingId}` : `${BASE_URL}/clientes`;
+      const method = editingId ? "PUT" : "POST";
+
+      const resposta = await fetch(url, {
+        method: method,
+        headers: getHeaders(), // Correção: Injetando o Token corretamente
+        body: JSON.stringify(payload)
+      });
+
+      if (!resposta.ok) {
+        const errData = await resposta.json().catch(() => ({}));
+        throw new Error(errData.mensagem || "Erro ao salvar no servidor.");
       }
       
-      await load();
+      await loadClientes();
       fecharModal();
       
-    } catch (err: unknown) {
-      const e = err as { mensagem?: string };
-      setError(e?.mensagem ?? "Erro ao salvar cliente");
+    } catch (err: any) {
+      setError(err.message || "Erro ao salvar cliente.");
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Inativar este cliente?")) return;
-    await api.clientes.delete(id);
-    load();
+    if (!window.confirm("Atenção: Inativar este cliente cancelará todas as consultas abertas dos pets dele. Deseja continuar?")) return;
+    
+    try {
+      const resposta = await fetch(`${BASE_URL}/clientes/${id}`, {
+        method: "DELETE",
+        headers: getHeaders()
+      });
+      
+      if (!resposta.ok){
+        const errData = await resposta.json().catch(() => ({}));
+        throw new Error(errData.mensagem || "Falha ao inativar cliente.");
+      }
+      loadClientes();
+    } catch (err: any) {
+        alert(`Erro: ${err.message}`);    
+    }
   };
-
-  const handleEdit = (cliente: Cliente) => {
-    setForm({
-      nome: cliente.nome,
-      cpf: cliente.cpf, 
-      telefone: cliente.telefone,
-    });
-    setEditingId(cliente.id);
-    setModal(true);
-  };
-
+  
   return (
     <div className="flex flex-col gap-8">
       <Header 
@@ -123,7 +170,7 @@ export default function Clientes() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filtered.map((c) => (
-            <div key={c.id} className="bg-white border-4 border-cianoEscuro rounded-3xl p-6 shadow-3xl flex flex-col gap-3">
+            <div key={c.id} className={c.ativo ? "bg-white border-4 border-cianoEscuro rounded-3xl p-6 shadow-3xl flex flex-col gap-3" : "bg-white border-4 border-cianoEscuro rounded-3xl p-6 shadow-3xl flex flex-col gap-3 opacity-60 grayscale"}>
               
               {/* Cabeçalho do Card */}
               <div className="flex items-center gap-3 border-b-2 border-ci pb-3">
@@ -201,7 +248,7 @@ export default function Clientes() {
                     type={type}
                     placeholder={placeholder}
                     required
-                    value={form[name]}
+                    value={form[name as keyof FormState]}
                     onChange={(e) => setForm((f) => ({ ...f, [name]: e.target.value }))}
                     className="w-full p-3 rounded-xl border-2 border-ciano bg-white text-black focus:ring-2 focus:ring-cianoEscuro outline-none"
                   />

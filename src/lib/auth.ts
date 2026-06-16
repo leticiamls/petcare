@@ -5,22 +5,25 @@ const KEY = "petcare_auth";
 export interface AuthSession extends LoginResponse {}
 
 export const auth = {
-  save: (session: LoginResponse) => {
-    localStorage.setItem(KEY, JSON.stringify(session));
+  save: (dados: { token: string; role: string; username: string; veterinarioId?: number | null }) => {
+    localStorage.setItem("token", dados.token);
+    localStorage.setItem("role", dados.role);
+    localStorage.setItem("username", dados.username);
+    if (dados.veterinarioId) {
+      localStorage.setItem("veterinarioId", String(dados.veterinarioId));
+    } else {
+      localStorage.removeItem("veterinarioId");
+    }
   },
-  get: (): AuthSession | null => {
-    const raw = localStorage.getItem(KEY);
-    return raw ? JSON.parse(raw) : null;
+  getToken: () => localStorage.getItem("token"),
+  getRole: () => localStorage.getItem("role"),
+  getUsername: () => localStorage.getItem("username"),
+  getVeterinarioId: () => localStorage.getItem("veterinarioId"),
+  isAuthenticated: () => !!localStorage.getItem("token"),
+  clear: () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("role");
+    localStorage.removeItem("username");
+    localStorage.removeItem("veterinarioId");
   },
-  getToken: (): string | null => auth.get()?.token ?? null,
-  getRole: (): Role | null => auth.get()?.role ?? null,
-  getVetId: (): number | null => auth.get()?.veterinarioId ?? null,
-  getUsername: (): string | null => auth.get()?.username ?? null,
-  clear: () => localStorage.removeItem(KEY),
-  isAuthenticated: (): boolean => !!auth.getToken(),
-  // Cabeçalho Authorization (para o futuro backend real)
-  headers: (): Record<string, string> => ({
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${auth.getToken() ?? ""}`,
-  }),
 };
