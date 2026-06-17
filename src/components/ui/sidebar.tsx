@@ -8,7 +8,6 @@ import { LogOut, ChevronLeft, ChevronRight } from "lucide-react";
 
 function Sidebar() {
   const navigate = useNavigate();
-  // 1. Criamos a "memória" para saber se está fechada ou não
   const [isCollapsed, setIsCollapsed] = useState(false);
   
   const role = auth.getRole();
@@ -29,7 +28,7 @@ function Sidebar() {
     >
       <button 
         onClick={() => setIsCollapsed(!isCollapsed)}
-        className="absolute -right-4 top- bg-bege border-2 border-cianoEscuro rounded-full p-1 text-cianoEscuro hover:scale-110 transition-transform z-10"
+        className="absolute -right-4 top-15 bg-bege border-2 border-cianoEscuro rounded-full p-1 text-cianoEscuro hover:scale-110 transition-transform z-10"
       >
         {isCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
       </button>
@@ -40,7 +39,6 @@ function Sidebar() {
         isCollapsed ? "text-2xl px-2" : "text-6xl"
       )}>
         {isCollapsed ? (
-          /* Aqui entra o seu ícone personalizado! */
           <Icone className="h-20 w-10 text-bege animate-fadeIn hover:scale-110 transition-transform"/>
         ) : (
           "PetCare"
@@ -52,11 +50,11 @@ function Sidebar() {
           <li key={val.link}>
             <NavLink
               to={val.link}
-              title={isCollapsed ? val.title : ""} // Mostra o nome ao passar o mouse se estiver fechada
+              title={isCollapsed ? val.title : ""}
               className={({ isActive }) =>
                 cn(
                   "flex items-center p-4 rounded-xl font-texto font-semibold transition-all overflow-hidden whitespace-nowrap",
-                  isCollapsed ? "justify-center gap-0" : "gap-4", // Ajusta o gap se estiver fechada
+                  isCollapsed ? "justify-center gap-0" : "gap-4",
                   isActive
                     ? "bg-bege/75 text-cianoEscuro shadow-cianoEscuro border-2 border-cianoEscuro"
                     : "bg-bege text-cianoEscuro shadow-[3px_3px_0px_0px_rgba(22,61,52,1)] border-2 border-cianoEscuro hover:translate-x-1 hover:translate-y-1 hover:bg-bege/75 hover:shadow-none"

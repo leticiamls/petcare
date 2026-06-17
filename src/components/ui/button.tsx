@@ -6,12 +6,12 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 export function Button({ className, variant = 'primary', ...props }: ButtonProps) {
-  const baseStyles = "px-5 py-2 rounded-xl font-texto font-semibold";
+  const baseStyles = "flex justify-center items-center px-6 h-[48px] gap-2 font-texto font-bold border-2 border-cianoEscuro rounded-2xl transition-all hover:brightness-110";
   
   const variants = {
-    primary: "bg-ciano text-bege hover:bg-cianoEscuro",
-    secondary: "bg-bege text-ciano hover:bg-begeEscuro flex items-center gap-2 p-3",
-    exclude: "bg-bege text-vermelho hover:bg-vermelhoClaro flex items-center gap-2 p-3",
+    primary: "bg-ciano text-white",
+    secondary: "bg-bege text-cianoEscuro",
+    exclude: "bg-vermelho text-white" 
   };
 
   return (

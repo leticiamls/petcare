@@ -5,7 +5,6 @@ import Sidebar from "./components/ui/sidebar";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import Pets from "./pages/pets";
 import Clientes from "./pages/Clientes";
-import Veterinarios from "./pages/Veterinarios";
 import Consultas from "./pages/Consultas";
 import Equipe from "./pages/Equipe";
 
@@ -30,7 +29,6 @@ function App() {
           <Route path="/dashboard"    element={<Dashboard />} />
           <Route path="/pets"         element={<Pets />} />
           <Route path="/clientes"     element={<Clientes />} />
-          <Route path="/veterinarios" element={<Veterinarios />} />
           <Route path="/consultas"    element={<Consultas />} />
           <Route path="/equipe"       element={<Equipe />} />
         </Route>
