@@ -1,25 +1,48 @@
 import { useEffect, useState } from "react";
-import { api } from "../lib/mockDb";
-import type { Pet, Cliente } from "../lib/mockDb";
 import { Button } from "../components/ui/button";
 import { Header } from "../components/ui/header";
-import { Dog, Cat, Plus, Search, X, Trash2, Rabbit } from "lucide-react";
+import { Dog, Cat, X, Trash2, Rabbit, ShieldAlert } from "lucide-react";
+import { BASE_URL } from "../lib/api";
+import { auth } from "../lib/auth"; // 🎯 Importando o utilitário real de autenticação
 
-const PetIcon = ({ especie }: { especie: Pet["especie"] }) => {
-  if (especie === "Gato") return <Cat size={32}/>;
-  if (especie === "Cachorro") return <Dog size={32} />;
+export interface Pet {
+  id: number;
+  nome: string;
+  especie: string;
+  raca: string;
+  dataNascimento: string;
+  clienteId: number;
+  ativo?: boolean; // Adicionado para o controle visual do Soft Delete
+}
+
+export interface Cliente {
+  id: number;
+  nome: string;
+  ativo?: boolean;
+}
+
+const PetIcon = ({ especie }: { especie: string }) => {
+  const esp = especie.toLowerCase();
+  if (esp === "gato") return <Cat size={32}/>;
+  if (esp === "cachorro") return <Dog size={32} />;
   return <Rabbit size={32} />;
 };
 
 const calcAge = (dataNascimento: string) => {
-  const years = new Date().getFullYear() - new Date(dataNascimento).getFullYear();
+  const birthYear = new Date(dataNascimento).getFullYear();
+  if (isNaN(birthYear)) return "Idade desc."; 
+  const years = new Date().getFullYear() - birthYear;
   return years <= 0 ? "< 1 ano" : years === 1 ? "1 ano" : `${years} anos`;
 };
 
 interface FormState {
-  nome: string; especie: Pet["especie"]; raca: string;
-  dataNascimento: string; clienteId: string;
+  nome: string; 
+  especie: string; 
+  raca: string;
+  dataNascimento: string; 
+  clienteId: string;
 }
+
 const emptyForm: FormState = { nome: "", especie: "Cachorro", raca: "", dataNascimento: "", clienteId: "" };
 
 export default function Pets() {
@@ -32,12 +55,61 @@ export default function Pets() {
   const [saving, setSaving]     = useState(false);
   const [error, setError]       = useState<string | null>(null);
 
-  const load = () =>
-    Promise.all([api.pets.getAll(), api.clientes.getAll()])
-      .then(([p, c]) => { setPets(p); setClientes(c); })
-      .finally(() => setLoading(false));
+  // 1. Pegamos o perfil do usuário logado
+  const userRole = auth.getRole();
 
-  useEffect(() => { load(); }, []);
+  // 2. Montamos os Headers com o JWT
+  const getHeaders = () => ({
+    "Content-Type": "application/json",
+    "ngrok-skip-browser-warning": "true",
+    "Authorization": `Bearer ${auth.getToken()}`
+  });
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      // Dispara as requisições em paralelo para a API real
+      const [resPets, resClientes] = await Promise.all([
+        fetch(`${BASE_URL}/pets`, { headers: getHeaders() }).catch(() => null),
+        fetch(`${BASE_URL}/clientes`, { headers: getHeaders() }).catch(() => null)
+      ]);
+
+      const petsData = resPets?.ok ? await resPets.json() : [];
+      const clientesData = resClientes?.ok ? await resClientes.json() : [];
+
+      setPets(petsData);
+      // Filtra apenas os clientes ativos para aparecerem no select de Tutor
+      setClientes(clientesData.filter((c: Cliente) => c.ativo !== false));
+    } catch (err) {
+      console.error("Erro ao carregar os dados:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { 
+    // Só carrega os dados se o usuário tiver permissão
+    if (userRole === "ADMIN" || userRole === "FUNCIONARIO") {
+      load(); 
+    } else {
+      setLoading(false);
+    }
+  }, [userRole]);
+
+  // 🔒 BARREIRA DE SEGURANÇA: Bloqueia o VET
+  if (userRole === "VET") {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center p-8">
+        <div className="p-4 bg-red-100 rounded-full">
+          <ShieldAlert size={48} className="text-red-500" />
+        </div>
+        <h2 className="font-titulo text-cianoEscuro text-3xl">Acesso Restrito</h2>
+        <p className="font-texto text-gray-600 text-lg max-w-md">
+          Seu perfil de Veterinário não tem permissão para gerenciar cadastros de pets. Acesse suas Consultas para visualizar os pets agendados.
+        </p>
+      </div>
+    );
+  }
 
   const clienteNome = (id: number) => clientes.find((c) => c.id === id)?.nome ?? "—";
 
@@ -53,28 +125,47 @@ export default function Pets() {
     setError(null);
     setSaving(true);
     try {
-      await api.pets.create({
-        nome: form.nome,
-        especie: form.especie,
-        raca: form.raca,
-        dataNascimento: form.dataNascimento,
-        clienteId: Number(form.clienteId),
+      const resposta = await fetch(`${BASE_URL}/pets`, {
+        method: "POST",
+        headers: getHeaders(),
+        body: JSON.stringify({
+          nome: form.nome,
+          especie: form.especie,
+          raca: form.raca,
+          dataNascimento: form.dataNascimento,
+          clienteId: Number(form.clienteId),
+        })
       });
+
+      if (!resposta.ok) {
+        const errData = await resposta.json().catch(() => ({}));
+        throw new Error(errData.mensagem || "Erro ao cadastrar pet.");
+      }
+
       await load();
       setModal(false);
       setForm(emptyForm);
-    } catch (err: unknown) {
-      const e = err as { mensagem?: string };
-      setError(e?.mensagem ?? "Erro ao cadastrar pet");
+    } catch (err) {
+      if (err instanceof Error) setError(err.message);
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Inativar este pet?")) return;
-    await api.pets.delete(id);
-    load();
+    if (!window.confirm("Atenção: Inativar este pet cancelará automaticamente suas consultas abertas. Deseja continuar?")) return;
+    
+    try {
+      const resposta = await fetch(`${BASE_URL}/pets/${id}`, {
+        method: "DELETE", // Se o seu back usar PATCH para inativar, altere aqui
+        headers: getHeaders()
+      });
+
+      if (!resposta.ok) throw new Error("Erro ao inativar pet");
+      load();
+    } catch (err) {
+      alert("Falha ao inativar o pet. Verifique sua conexão.");
+    }
   };
 
   return (
@@ -82,7 +173,7 @@ export default function Pets() {
       <Header 
         title="Pets"
         buttonText="Novo Pet"
-        searchPlaceholder="Buscar por nome do pet"
+        searchPlaceholder="Buscar por nome, raça ou espécie"
         search={search}
         setSearch={setSearch}
         onActionClick={() => setModal(true)} 
@@ -99,10 +190,10 @@ export default function Pets() {
           {filtered.map((pet) => (
             <div
               key={pet.id}
-              className="bg-white border-4 border-cianoEscuro rounded-3xl p-6 shadow-3xl flex flex-col gap-3"
+              className={`bg-white border-4 border-cianoEscuro rounded-3xl p-6 shadow-3xl flex flex-col gap-3 transition-all ${pet.ativo === false ? "opacity-60 grayscale" : ""}`}
             >
             <div className="flex w-full items-center gap-3 border-b-2 border-cianoEscuro pb-3">
-               <div className="p-2 bg-ciano border-2 border-cianoEscuro rounded-lg">
+               <div className="p-2 bg-ciano border-2 border-cianoEscuro rounded-lg text-white">
                   <PetIcon especie={pet.especie} />
                </div>
 
@@ -110,7 +201,7 @@ export default function Pets() {
                 {pet.nome}
                </h3>
 
-                <span className="ml-auto text-xs font-black bg-ciano border-2 border-cianoEscuro px-3 py-1 rounded-full uppercase">
+                <span className="ml-auto text-xs font-black bg-ciano text-white border-2 border-cianoEscuro px-3 py-1 rounded-full uppercase">
                   {pet.especie}
                 </span>
             </div>
@@ -125,10 +216,11 @@ export default function Pets() {
                 <span className="text-xs font-bold text-cianoEscuro uppercase self-end">
                   Nasc.: {new Date(pet.dataNascimento + "T00:00:00").toLocaleDateString("pt-BR")}
                 </span>
-                <Button variant= "exclude"
+                <Button variant="exclude"
+                  disabled={pet.ativo === false}
                   onClick={() => handleDelete(pet.id)} 
                 >
-                  <Trash2 size={14} /> Inativar
+                  <Trash2 size={14} /> {pet.ativo === false ? "Inativo" : "Inativar"}
                 </Button>
               </div>
             </div>
@@ -156,7 +248,7 @@ export default function Pets() {
                   onChange={(e) => setForm((f) => ({ ...f, clienteId: e.target.value }))}
                   className="w-full p-3 rounded-xl border-2 border-ciano bg-white text-black focus:ring-2 focus:ring-cianoEscuro outline-none"
                 >
-                  <option value="">Selecione um cliente</option>
+                  <option value="">Selecione um cliente ativo</option>
                   {clientes.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
                 </select>
               </div>
@@ -172,11 +264,11 @@ export default function Pets() {
               {/* Espécie */}
               <div className="flex flex-col gap-1">
                 <label className="text-ciano font-bold text-sm ml-1">Espécie</label>
-                <select value={form.especie} onChange={(e) => setForm((f) => ({ ...f, especie: e.target.value as Pet["especie"] }))}
+                <select value={form.especie} onChange={(e) => setForm((f) => ({ ...f, especie: e.target.value }))}
                   className="w-full p-3 rounded-xl border-2 border-ciano bg-white text-black focus:ring-2 focus:ring-cianoEscuro outline-none">
-                  <option>Cachorro</option>
-                  <option>Gato</option>
-                  <option>Outro</option>
+                  <option value="Cachorro">Cachorro</option>
+                  <option value="Gato">Gato</option>
+                  <option value="Outro">Outro</option>
                 </select>
               </div>
 
@@ -192,6 +284,8 @@ export default function Pets() {
               <div className="flex flex-col gap-1">
                 <label className="text-ciano font-bold text-sm ml-1">Data de Nascimento</label>
                 <input type="date" required value={form.dataNascimento}
+                  // Impede que o usuário selecione uma data no futuro
+                  max={new Date().toISOString().split("T")[0]} 
                   onChange={(e) => setForm((f) => ({ ...f, dataNascimento: e.target.value }))}
                   className="w-full p-3 rounded-xl border-2 border-ciano bg-white text-black focus:ring-2 focus:ring-cianoEscuro outline-none" />
               </div>

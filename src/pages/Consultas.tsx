@@ -1,116 +1,150 @@
 import { useEffect, useState } from "react";
-import { api } from "../lib/mockDb";
-import type { Consulta, Pet, Veterinario, Sintoma, Medicamento } from "../lib/mockDb";
 import { auth } from "../lib/auth";
+import { BASE_URL } from "../lib/api";
 import { Button } from "../components/ui/button";
 import { Header } from "../components/ui/header";
 import { Plus, Search, X, CheckCircle, XCircle, Stethoscope, CalendarDays } from "lucide-react";
 
+// Mantendo as tipagens para o TypeScript não reclamar
+export type Consulta = { id: number; petId: number; veterinarioId: number; data: string; status: "ABERTA" | "FINALIZADA" | "CANCELADA"; descricao: string; sintomas: number[]; medicamentos: number[]; };
+export type Pet = { id: number; nome: string; especie: string; donoId: number; ativo: boolean; };
+export type Veterinario = { id: number; nome: string; crmv: string; especialidade: string; ativo: boolean; };
+export type Sintoma = { id: number; nome: string; };
+export type Medicamento = { id: number; nome: string; dose: string; };
+
 type StatusFilter = "TODAS" | "ABERTA" | "FINALIZADA" | "CANCELADA";
 
 const STATUS_BADGE: Record<Consulta["status"], string> = {
-  ABERTA:     "bg-yellow-300 border-yellow-600 text-yellow-900",
+  ABERTA: "bg-yellow-300 border-yellow-600 text-yellow-900",
   FINALIZADA: "bg-green-300 border-green-700 text-green-900",
-  CANCELADA:  "bg-red-200 border-red-500 text-red-800",
+  CANCELADA: "bg-red-200 border-red-500 text-red-800",
 };
 
 interface EditModal { consulta: Consulta; sintomas: Sintoma[]; medicamentos: Medicamento[] }
 
 export default function Consultas() {
-  const role   = auth.getRole();
-  const vetId  = auth.getVetId();
+  const role = auth.getRole();
+  const vetId = auth.getVeterinarioId() ? Number(auth.getVeterinarioId()) : null;
+  const token = auth.getToken();
 
-  const [consultas,    setConsultas]    = useState<Consulta[]>([]);
-  const [pets,         setPets]         = useState<Pet[]>([]);
-  const [vets,         setVets]         = useState<Veterinario[]>([]);
-  const [sintomas,     setSintomas]     = useState<Sintoma[]>([]);
+  const [consultas, setConsultas] = useState<Consulta[]>([]);
+  const [pets, setPets] = useState<Pet[]>([]);
+  const [vets, setVets] = useState<Veterinario[]>([]);
+  const [sintomas, setSintomas] = useState<Sintoma[]>([]);
   const [medicamentos, setMedicamentos] = useState<Medicamento[]>([]);
-  const [loading,      setLoading]      = useState(true);
-  const [search,       setSearch]       = useState("");
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("TODAS");
 
   // Modal nova consulta (FUNCIONARIO)
   const [novaModal, setNovaModal] = useState(false);
-  const [novaForm, setNovaForm]   = useState({ petId: "", veterinarioId: "", data: "", descricao: "" });
-  const [saving, setSaving]       = useState(false);
-  const [error, setError]         = useState<string | null>(null);
+  const [novaForm, setNovaForm] = useState({ petId: "", veterinarioId: "", data: "", descricao: "" });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Modal editar consulta (VET)
-  const [editModal, setEditModal]     = useState<EditModal | null>(null);
+  const [editModal, setEditModal] = useState<EditModal | null>(null);
   const [selSintomas, setSelSintomas] = useState<number[]>([]);
-  const [selMeds, setSelMeds]         = useState<number[]>([]);
-  const [editDesc, setEditDesc]       = useState("");
-  const [editSaving, setEditSaving]   = useState(false);
-  const [editError, setEditError]     = useState<string | null>(null);
+  const [selMeds, setSelMeds] = useState<number[]>([]);
+  const [editDesc, setEditDesc] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  // Configuração padrão dos Headers para as requisições
+  const headers = {
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${token}`,
+    "ngrok-skip-browser-warning": "true"
+  };
 
   const load = async () => {
-    const [c, p, v, s, m] = await Promise.all([
-      api.consultas.getAll(),
-      api.pets.getAll(),
-      api.veterinarios.getAll(),
-      api.sintomas.getAll(),
-      api.medicamentos.getAll(),
-    ]);
-    // VET só vê as próprias consultas
-    setConsultas(role === "VET" && vetId ? c.filter((x) => x.veterinarioId === vetId) : c);
-    setPets(p);
-    setVets(v);
-    setSintomas(s);
-    setMedicamentos(m);
-    setLoading(false);
+    try {
+      // Lógica de Filtro Automático por Role
+      let urlConsultas = `${BASE_URL}/consultas`;
+      if (role === "VET" && vetId) {
+        urlConsultas = `${BASE_URL}/consultas?veterinarioId=${vetId}`;
+      }
+
+      const [resC, resP, resV, resS, resM] = await Promise.all([
+        fetch(urlConsultas, { headers }),
+        fetch(`${BASE_URL}/pets`, { headers }),
+        fetch(`${BASE_URL}/veterinarios`, { headers }),
+        fetch(`${BASE_URL}/sintomas`, { headers }),
+        fetch(`${BASE_URL}/medicamentos`, { headers }),
+      ]);
+
+      if (resC.ok) setConsultas(await resC.json());
+      if (resP.ok) setPets(await resP.json());
+      if (resV.ok) setVets(await resV.json());
+      if (resS.ok) setSintomas(await resS.json());
+      if (resM.ok) setMedicamentos(await resM.json());
+    } catch (err) {
+      console.error("Erro ao carregar dados", err);
+    } finally {
+      setLoading(false);
+    }
   };
+
   useEffect(() => { load(); }, []);
 
   const petNome = (id: number) => pets.find((p) => p.id === id)?.nome ?? "—";
   const vetNome = (id: number) => vets.find((v) => v.id === id)?.nome ?? "—";
-  const sintomasNomes = (ids: number[]) =>
-    ids.map((id) => sintomas.find((s) => s.id === id)?.nome).filter(Boolean).join(", ") || "—";
-  const medsNomes = (ids: number[]) =>
-    ids.map((id) => medicamentos.find((m) => m.id === id)?.nome).filter(Boolean).join(", ") || "—";
+  const sintomasNomes = (ids: number[]) => ids.map((id) => sintomas.find((s) => s.id === id)?.nome).filter(Boolean).join(", ") || "—";
+  const medsNomes = (ids: number[]) => ids.map((id) => medicamentos.find((m) => m.id === id)?.nome).filter(Boolean).join(", ") || "—";
 
   const filtered = consultas.filter((c) => {
-    const matchSearch =
-      petNome(c.petId).toLowerCase().includes(search.toLowerCase()) ||
-      vetNome(c.veterinarioId).toLowerCase().includes(search.toLowerCase()) ||
-      c.descricao.toLowerCase().includes(search.toLowerCase());
+    const matchSearch = petNome(c.petId).toLowerCase().includes(search.toLowerCase()) ||
+                        vetNome(c.veterinarioId).toLowerCase().includes(search.toLowerCase()) ||
+                        c.descricao.toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter === "TODAS" || c.status === statusFilter;
     return matchSearch && matchStatus;
   });
 
-  // ── Nova consulta ──
+  // ── Nova consulta (POST) ──
   const handleNova = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSaving(true);
     try {
-      await api.consultas.create({
-        petId: Number(novaForm.petId),
-        veterinarioId: Number(novaForm.veterinarioId),
-        data: novaForm.data,
-        descricao: novaForm.descricao,
+      const res = await fetch(`${BASE_URL}/consultas`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          petId: Number(novaForm.petId),
+          veterinarioId: Number(novaForm.veterinarioId),
+          data: novaForm.data,
+          descricao: novaForm.descricao,
+        })
       });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.mensagem || "Erro ao abrir consulta.");
+      }
+
       await load();
       setNovaModal(false);
       setNovaForm({ petId: "", veterinarioId: "", data: "", descricao: "" });
-    } catch (err: unknown) {
-      setError((err as { mensagem?: string })?.mensagem ?? "Erro ao abrir consulta");
+    } catch (err: any) {
+      setError(err.message);
     } finally {
       setSaving(false);
     }
   };
 
-  // ── Cancelar (FUNCIONARIO) ──
+  // ── Cancelar (PATCH) ──
   const handleCancelar = async (id: number) => {
     if (!confirm("Cancelar esta consulta?")) return;
     try {
-      await api.consultas.cancelar(id);
+      const res = await fetch(`${BASE_URL}/consultas/cancelar/${id}`, { method: "PATCH", headers });
+      if (!res.ok) throw new Error("Erro ao cancelar consulta.");
       load();
-    } catch (err: unknown) {
-      alert((err as { mensagem?: string })?.mensagem ?? "Erro ao cancelar");
+    } catch (err: any) {
+      alert(err.message);
     }
   };
 
-  // ── Abrir modal edição (VET) ──
+  // ── Abrir modal edição ──
   const openEdit = (c: Consulta) => {
     setSelSintomas([...c.sintomas]);
     setSelMeds([...c.medicamentos]);
@@ -123,34 +157,43 @@ export default function Consultas() {
     setter(list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
   };
 
-  // ── Salvar edição (VET) ──
+  // ── Salvar edição (PUT) ──
   const handleSaveEdit = async () => {
     if (!editModal) return;
     setEditError(null);
     setEditSaving(true);
     try {
-      await api.consultas.update(editModal.consulta.id, {
-        sintomas: selSintomas,
-        medicamentos: selMeds,
-        descricao: editDesc,
+      const res = await fetch(`${BASE_URL}/consultas/${editModal.consulta.id}`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({
+          sintomas: selSintomas,
+          medicamentos: selMeds,
+          descricao: editDesc,
+        })
       });
+
+      if (!res.ok) throw new Error("Erro ao salvar prontuário.");
       await load();
       setEditModal(null);
-    } catch (err: unknown) {
-      setEditError((err as { mensagem?: string })?.mensagem ?? "Erro ao salvar");
+    } catch (err: any) {
+      setEditError(err.message);
     } finally {
       setEditSaving(false);
     }
   };
 
-  // ── Finalizar (VET) ──
+  // ── Finalizar (PATCH) ──
   const handleFinalizar = async (id: number) => {
     if (!confirm("Finalizar esta consulta?")) return;
     try {
-      await api.consultas.finalizar(id);
+      const res = await fetch(`${BASE_URL}/consultas/finalizar/${id}`, { method: "PATCH", headers });
+      if (!res.ok) throw new Error("Erro ao finalizar consulta.");
+      
+      if (editModal && editModal.consulta.id === id) setEditModal(null);
       load();
-    } catch (err: unknown) {
-      alert((err as { mensagem?: string })?.mensagem ?? "Erro ao finalizar");
+    } catch (err: any) {
+      alert(err.message);
     }
   };
 
@@ -158,12 +201,13 @@ export default function Consultas() {
     <div className="flex flex-col gap-8">
       <Header 
         title="Consultas"
-        buttonText="Nova Consulta"
-        searchPlaceholder="Buscar por CPF"
+        buttonText={role === "FUNCIONARIO" || role === "ADMIN" ? "Nova Consulta" : undefined}
+        searchPlaceholder="Buscar paciente ou motivo..."
         search={search}
         setSearch={setSearch}
-        onActionClick={() => setNovaModal(true)} 
+        onActionClick={role === "FUNCIONARIO" || role === "ADMIN" ? () => setNovaModal(true) : undefined} 
       />
+      
       {loading ? (
         <div className="flex flex-col gap-4">
           {[...Array(4)].map((_, i) => <div key={i} className="h-28 rounded-2xl bg-black/10 animate-pulse" />)}
@@ -183,9 +227,9 @@ export default function Consultas() {
                 </div>
                 <p className="font-texto text-black/70 text-sm mt-1">{c.descricao}</p>
                 <div className="flex gap-4 text-xs font-texto font-semibold text-black/50 mt-1 flex-wrap">
-                  <span className="flex items-center gap-1"><CalendarDays size={12} /> {new Date(c.data + "T00:00:00").toLocaleDateString("pt-BR")}</span>
-                  {c.sintomas.length > 0 && <span>Sintomas: {sintomasNomes(c.sintomas)}</span>}
-                  {c.medicamentos.length > 0 && <span>Medicamentos: {medsNomes(c.medicamentos)}</span>}
+                  <span className="flex items-center gap-1"><CalendarDays size={12} /> {c.data ? new Date(c.data + "T00:00:00").toLocaleDateString("pt-BR") : "Data não definida"}</span>
+                  {c.sintomas?.length > 0 && <span>Sintomas: {sintomasNomes(c.sintomas)}</span>}
+                  {c.medicamentos?.length > 0 && <span>Medicamentos: {medsNomes(c.medicamentos)}</span>}
                 </div>
               </div>
 
@@ -204,8 +248,8 @@ export default function Consultas() {
                     </button>
                   </>
                 )}
-                {/* FUNCIONARIO: cancelar */}
-                {role === "FUNCIONARIO" && c.status === "ABERTA" && (
+                {/* FUNCIONARIO/ADMIN: cancelar */}
+                {(role === "FUNCIONARIO" || role === "ADMIN") && c.status === "ABERTA" && (
                   <button onClick={() => handleCancelar(c.id)}
                     className="flex items-center gap-1 px-3 py-2 border-2 border-red-500 rounded-xl text-xs font-bold bg-red-100 hover:bg-red-200 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all">
                     <XCircle size={14} /> Cancelar
@@ -217,7 +261,7 @@ export default function Consultas() {
         </div>
       )}
 
-      {/* ── Modal: Nova Consulta (FUNCIONARIO) ────────────────────────────── */}
+      {/* ── Modal: Nova Consulta ────────────────────────────── */}
       {novaModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="relative flex flex-col gap-5 p-8 bg-bege border-4 border-cianoEscuro shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] rounded-[2rem] w-full max-w-md font-texto max-h-[90vh] overflow-y-auto">
@@ -278,14 +322,12 @@ export default function Consultas() {
               Pet: <b>{petNome(editModal.consulta.petId)}</b>
             </p>
 
-            {/* Descrição */}
             <div className="flex flex-col gap-1">
               <label className="text-ciano font-bold text-sm ml-1">Descrição</label>
               <textarea rows={3} value={editDesc} onChange={(e) => setEditDesc(e.target.value)}
                 className="w-full p-3 rounded-xl border-2 border-ciano bg-white text-black focus:ring-2 focus:ring-cianoEscuro outline-none resize-none" />
             </div>
 
-            {/* Sintomas */}
             <div className="flex flex-col gap-2">
               <label className="text-ciano font-bold text-sm ml-1">Sintomas</label>
               <div className="flex flex-wrap gap-2">
@@ -299,7 +341,6 @@ export default function Consultas() {
               </div>
             </div>
 
-            {/* Medicamentos */}
             <div className="flex flex-col gap-2">
               <label className="text-ciano font-bold text-sm ml-1">Medicamentos</label>
               <div className="flex flex-wrap gap-2">
@@ -315,9 +356,9 @@ export default function Consultas() {
 
             {editError && <p className="text-red-500 text-sm font-semibold text-center bg-red-50 border border-red-200 rounded-xl p-2">{editError}</p>}
 
-            <div className="flex gap-3">
+            <div className="flex gap-3 mt-4">
               <Button variant="primary" onClick={handleSaveEdit} disabled={editSaving} className="flex-1 justify-center">
-                {editSaving ? "Salvando..." : "Salvar"}
+                {editSaving ? "Salvando..." : "Salvar Prontuário"}
               </Button>
               <button onClick={() => handleFinalizar(editModal.consulta.id)}
                 className="flex-1 py-2 border-2 border-green-700 rounded-xl text-sm font-bold bg-green-300 hover:bg-green-400 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all flex items-center justify-center gap-2">

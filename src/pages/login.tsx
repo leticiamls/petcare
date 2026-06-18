@@ -1,8 +1,10 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { BASE_URL } from "../lib/api";
+import { auth } from "../lib/auth";
 import { Button } from "../components/ui/button";
 import { CardTitle } from "../components/ui/card";
+
 
 export default function Login() {
   const navigate = useNavigate();
@@ -31,26 +33,27 @@ export default function Login() {
         throw new Error(errData.mensagem || "Usuário ou senha incorretos.");
       }
 
+      // ... (código anterior)
       const dados = await resposta.json();
       
-      // 👀 O NOSSO ESPIÃO: Veja no Console (F12) o que o Java devolveu!
       console.log("ESPIÃO DO LOGIN - DADOS DO JAVA:", dados);
 
-      localStorage.setItem("token", dados.token);
-      localStorage.setItem("role", dados.role);
-      localStorage.setItem("username", dados.username);
-      
-      if (dados.veterinarioId) {
-        localStorage.setItem("veterinarioId", String(dados.veterinarioId));
-      } else {
-        localStorage.removeItem("veterinarioId");
-      }
+      // Usando o utilitário que criamos!
+      auth.save({
+        token: dados.token,
+        role: dados.role,
+        username: dados.username,
+        veterinarioId: dados.veterinarioId
+      });
 
-      // 🎯 CORREÇÃO: "D" maiúsculo para bater com a rota do App.tsx
       navigate("/Dashboard"); 
 
-    } catch (err: any) {
-      setError(err.message || "Erro ao fazer login");
+    } catch (err) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("Erro ao fazer login");
+      }
     } finally {
       setLoading(false);
     }
@@ -94,7 +97,9 @@ export default function Login() {
           )}
 
           <div className="text-sm text-right font-texto">
-            <a href="#" className="text-cianoEscuro hover:underline">Esqueceu a senha?</a>
+            <Link to="/esqueci-senha" className="text-cianoEscuro hover:underline">
+              Esqueceu a senha?
+            </Link>
           </div>
 
           <Button variant="primary" type="submit" disabled={loading} className="mt-1 w-full justify-center">
