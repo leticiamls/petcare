@@ -1,11 +1,14 @@
-import type { Role, LoginResponse } from "./mockDb";
+export type Role = "ADMIN" | "FUNCIONARIO" | "VET";
 
-const KEY = "petcare_auth";
-
-export interface AuthSession extends LoginResponse {}
+export interface LoginResponse {
+  token: string;
+  role: Role;
+  username: string;
+  veterinarioId?: number | null;
+}
 
 export const auth = {
-  save: (dados: { token: string; role: string; username: string; veterinarioId?: number | null }) => {
+  save: (dados: LoginResponse) => {
     localStorage.setItem("token", dados.token);
     localStorage.setItem("role", dados.role);
     localStorage.setItem("username", dados.username);
@@ -16,7 +19,7 @@ export const auth = {
     }
   },
   getToken: () => localStorage.getItem("token"),
-  getRole: () => localStorage.getItem("role"),
+  getRole: () => localStorage.getItem("role") as Role | null,
   getUsername: () => localStorage.getItem("username"),
   getVeterinarioId: () => localStorage.getItem("veterinarioId"),
   isAuthenticated: () => !!localStorage.getItem("token"),

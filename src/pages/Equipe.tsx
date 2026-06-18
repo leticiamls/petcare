@@ -1,17 +1,24 @@
-import React from "react";
-import { useEffect, useState } from "react";
-import { api } from "../lib/mockDb";
-import type { Role } from "../lib/mockDb";
+import React, { useEffect, useState } from "react";
+import { BASE_URL } from "../lib/api";
+import { auth, type Role } from "../lib/auth";
 import { Button } from "../components/ui/button";
 import { ShieldCheck, UserCheck, Stethoscope, Plus, X, Trash2, Search } from "lucide-react";
 
-interface UserRow { id: number; username: string; email: string; role: Role; ativo: boolean; veterinarioId: number | null }
+interface UserRow { 
+  id: number; 
+  username: string; 
+  email: string; 
+  role: Role; 
+  ativo: boolean; 
+  veterinarioId: number | null 
+}
 
 const ROLE_BADGE: Record<Role, string> = {
   ADMIN:       "bg-red-200 border-red-600 text-red-900",
   FUNCIONARIO: "bg-blue-200 border-blue-600 text-blue-900",
   VET:         "bg-green-200 border-green-700 text-green-900",
 };
+
 const ROLE_ICON: Record<Role, React.ReactElement> = {
   ADMIN:       <ShieldCheck size={16} />,
   FUNCIONARIO: <UserCheck size={16} />,
@@ -36,7 +43,17 @@ const emptyForm: FormState = {
   veterinarioNome: "",
   veterinarioCrmv: "",
   veterinarioTelefone: "",
- };
+};
+
+// 🎯 A MÁSCARA DE TELEFONE
+const maskPhone = (value: string) => {
+  let v = value.replace(/\D/g, ""); // Remove tudo o que não é dígito
+  if (v.length > 11) v = v.slice(0, 11); // Limita a 11 dígitos
+  if (v.length > 10) return v.replace(/^(\d{2})(\d{5})(\d{4}).*/, "($1) $2-$3");
+  if (v.length > 6) return v.replace(/^(\d{2})(\d{4})(\d{0,4}).*/, "($1) $2-$3");
+  if (v.length > 2) return v.replace(/^(\d{2})(\d{0,5})/, "($1) $2");
+  return v;
+};
 
 export default function Equipe() {
   const [usuarios, setUsuarios] = useState<UserRow[]>([]);
@@ -47,10 +64,51 @@ export default function Equipe() {
   const [saving, setSaving]     = useState(false);
   const [error, setError]       = useState<string | null>(null);
 
-  const load = () =>
-    api.usuarios.getAll().then((u) => setUsuarios(u as UserRow[])).finally(() => setLoading(false));
+  // Verifica o perfil logo no topo
+  const currentUserRole = auth.getRole();
 
-  useEffect(() => { load(); }, []);
+  const getHeaders = () => ({
+    "Content-Type": "application/json",
+    "ngrok-skip-browser-warning": "true",
+    "Authorization": `Bearer ${auth.getToken()}`
+  });
+
+  const load = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch(`${BASE_URL}/usuarios`, { headers: getHeaders() });
+      if (!res.ok) throw new Error("Falha ao buscar usuários");
+      const data = await res.json();
+      setUsuarios(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { 
+    if (currentUserRole === "ADMIN") {
+      load(); 
+    } else {
+      setLoading(false);
+    }
+  }, [currentUserRole]);
+
+  // 🔒 BARREIRA DE SEGURANÇA: Apenas ADMIN passa!
+  if (currentUserRole !== "ADMIN") {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center p-8">
+        <div className="p-4 bg-red-100 rounded-full">
+          <ShieldCheck size={48} className="text-red-500" />
+        </div>
+        <h2 className="font-titulo text-cianoEscuro text-3xl">Acesso Restrito</h2>
+        <p className="font-texto text-gray-600 text-lg max-w-md">
+          Apenas usuários com perfil de Administrador podem visualizar e gerenciar a equipe do sistema.
+        </p>
+      </div>
+    );
+  }
 
   const filtered = usuarios.filter(
     (u) =>
@@ -66,54 +124,88 @@ export default function Equipe() {
     try {
       let veterinarioId: number | null = null;
 
+      // Se for VET, cria o Veterinário na API primeiro
       if(form.role === "VET") {
         if(!form.veterinarioNome || !form.veterinarioCrmv || !form.veterinarioTelefone) {
-          setError("Preencha os dados do veterinário.");
+          setError("Preencha todos os dados do veterinário.");
           setSaving(false);
           return;
         }
-        const vet = await api.veterinarios.create({
-          nome: form.veterinarioNome,
-          crmv: form.veterinarioCrmv,
-          telefone: form.veterinarioTelefone.replace(/\D/g, ""),
+
+        const resVet = await fetch(`${BASE_URL}/veterinarios`, {
+          method: "POST",
+          headers: getHeaders(),
+          body: JSON.stringify({
+            nome: form.veterinarioNome,
+            crmv: form.veterinarioCrmv,
+            telefone: form.veterinarioTelefone.replace(/\D/g, ""), // Limpa a máscara para enviar ao Java
+          })
         });
-        veterinarioId = vet.id;
+
+        if (!resVet.ok) {
+          const errData = await resVet.json().catch(() => ({}));
+          throw new Error(errData.mensagem || "Erro ao criar o perfil de veterinário.");
+        }
+        
+        const vetCriado = await resVet.json();
+        veterinarioId = vetCriado.id;
       }
 
-      await api.usuarios.create({
-        username: form.username,
-        email: form.email,
-        password: form.password,
-        role: form.role,
-        ativo: true,
-        veterinarioId,
+      // Agora cria o usuário vinculado
+      const resUser = await fetch(`${BASE_URL}/usuarios`, {
+        method: "POST",
+        headers: getHeaders(),
+        body: JSON.stringify({
+          username: form.username,
+          email: form.email,
+          password: form.password,
+          role: form.role,
+          veterinarioId: veterinarioId,
+        })
       });
+
+      if (!resUser.ok) {
+        const errData = await resUser.json().catch(() => ({}));
+        throw new Error(errData.mensagem || "Erro ao criar o usuário.");
+      }
 
       await load();
       setModal(false);
       setForm(emptyForm);
-    } catch (err: unknown) {
-      setError((err as { mensagem?: string })?.mensagem ?? "Erro ao criar usuário");
+    } catch (err) {
+      if (err instanceof Error) setError(err.message);
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Inativar este usuário?")) return;
-    await api.usuarios.delete(id);
-    load();
+    if (!window.confirm("Inativar este usuário?")) return;
+    try {
+      const res = await fetch(`${BASE_URL}/usuarios/${id}`, {
+        method: "DELETE", // Se o seu back usar PATCH para soft-delete, mude aqui!
+        headers: getHeaders()
+      });
+      if (!res.ok) throw new Error("Erro ao inativar usuário");
+      load();
+    } catch (err) {
+      alert("Falha ao inativar usuário.");
+    }
   };
 
-  const field = (label: string, name: keyof FormState, type: string, placeholder: string, required = true) => (
-    <div className="flex, flex-col gap-1">
+  // 🎯 O HELPER "FIELD" AGORA SUPORTA MÁSCARAS
+  const field = (label: string, name: keyof FormState, type: string, placeholder: string, required = true, mask?: (v: string) => string) => (
+    <div className="flex flex-col gap-1">
       <label className="text-ciano font-bold text-sm ml-1">{label}</label>
       <input 
         type={type}
         required={required}
         placeholder={placeholder}
         value={form[name] as string}
-        onChange={(e) => setForm((f) => ({ ...f, [name]: e.target.value }))}
+        onChange={(e) => {
+          const val = mask ? mask(e.target.value) : e.target.value;
+          setForm((f) => ({ ...f, [name]: val }));
+        }}
         className="w-full p-3 rounded-xl  border-2 border-ciano bg-white text-black focus:ring-2 focus:ring-cianoEscuro outline-none"
       />
     </div>
@@ -121,6 +213,7 @@ export default function Equipe() {
 
   return (
     <div className="flex flex-col gap-8">
+      {/* O HEADER E A BARRA DE BUSCA CONTINUAM EXATAMENTE IGUAIS */}
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-ciano font-texto font-semibold text-5xl p-3">
@@ -216,15 +309,17 @@ export default function Equipe() {
                 </select>
               </div>
  
-              {/* Campos extras quando role = VET — cria o veterinário junto */}
+              {/* Campos extras quando role = VET */}
               {form.role === "VET" && (
                 <div className="flex flex-col gap-4 border-2 border-dashed border-ciano/50 rounded-2xl p-4 bg-white/40">
                   <p className="text-xs font-bold text-ciano uppercase tracking-wider">
                     Dados do Veterinário
                   </p>
-                  {field("Nome completo",  "veterinarioNome",     "text", "Dra. Nome Sobrenome")}
-                  {field("CRMV",           "veterinarioCrmv",     "text", "CRMV-CE 00000")}
-                  {field("Telefone",       "veterinarioTelefone", "tel",  "(85) 99999-9999")}
+                  {field("Nome completo", "veterinarioNome",     "text", "Dra. Nome Sobrenome")}
+                  {field("CRMV",          "veterinarioCrmv",     "text", "CRMV-CE 00000")}
+                  
+                  {/* 🎯 AQUI PASSAMOS A FUNÇÃO DE MÁSCARA! */}
+                  {field("Telefone",      "veterinarioTelefone", "tel",  "(85) 99999-9999", true, maskPhone)}
                 </div>
               )}
  
@@ -244,4 +339,3 @@ export default function Equipe() {
     </div>
   );
 }
- 

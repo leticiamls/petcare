@@ -1,29 +1,97 @@
 import { useEffect, useState } from "react";
 import { Card, CardTitle } from "../components/ui/card";
 import { Dog, Users, Calendar, Activity, Cat, Rabbit } from "lucide-react";
-import { api } from "../lib/mockDb";
-import type { Pet } from "../lib/mockDb";
+import { BASE_URL } from "../lib/api"; // 1. Importando a base da API
 import { auth } from "../lib/auth";
 
-const PetIcon = ({ especie }: { especie: Pet["especie"] }) => {
-  if (especie === "Gato") return <Cat size={28} />;
-  if (especie === "Cachorro") return <Dog size={28} />;
-  return <Rabbit size={28} />;
+// 2. Trazendo a interface Pet que antes vinha do mockDb
+export interface Pet {
+  id: number;
+  nome: string;
+  especie: string;
+  raca: string;
+  dataNascimento: string;
+  ativo: boolean;
+}
+
+const PetIcon = ({ especie }: { especie: string }) => {
+  if (especie.toLowerCase() === "gato") return <Cat size={28} />;
+  if (especie.toLowerCase() === "cachorro") return <Dog size={28} />;
+  return <Rabbit size={28} />; // Default/Coelho
 };
 
 const calcAge = (dataNascimento: string) => {
-  const years = new Date().getFullYear() - new Date(dataNascimento).getFullYear();
+  const birthYear = new Date(dataNascimento).getFullYear();
+  // Prevenção caso a data venha inválida
+  if (isNaN(birthYear)) return "Idade desc."; 
+  const years = new Date().getFullYear() - birthYear;
   return years <= 1 ? "1 ano" : `${years} anos`;
 };
 
 export default function Dashboard() {
-  const [stats, setStats] = useState({ totalPets: 0, totalClientes: 0, consultasHoje: 0, consultasAbertas: 0, recentPets: [] as Pet[] });
+  const [stats, setStats] = useState({ 
+    totalPets: 0, 
+    totalClientes: 0, 
+    consultasHoje: 0, 
+    consultasAbertas: 0, 
+    recentPets: [] as Pet[] 
+  });
   const [loading, setLoading] = useState(true);
+  
   const role = auth.getRole();
   const username = auth.getUsername();
 
+  // 3. Função para buscar os dados reais do Spring Boot
+  const carregarDadosReais = async () => {
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        "ngrok-skip-browser-warning": "true",
+        "Authorization": `Bearer ${auth.getToken()}`
+      };
+
+      // Dispara as 3 requisições ao mesmo tempo para ser mais rápido
+      const [resPets, resClientes, resConsultas] = await Promise.all([
+        fetch(`${BASE_URL}/pets`, { headers }).catch(() => null),
+        fetch(`${BASE_URL}/clientes`, { headers }).catch(() => null),
+        fetch(`${BASE_URL}/consultas`, { headers }).catch(() => null)
+      ]);
+
+      const pets = resPets?.ok ? await resPets.json() : [];
+      const clientes = resClientes?.ok ? await resClientes.json() : [];
+      const consultas = resConsultas?.ok ? await resConsultas.json() : [];
+
+      // 4. Calculando as métricas no Frontend
+      const petsAtivos = pets.filter((p: any) => p.ativo);
+      const clientesAtivos = clientes.filter((c: any) => c.ativo);
+      const consultasAbertas = consultas.filter((c: any) => c.status === "ABERTA");
+
+      // Pegando a data de hoje no formato YYYY-MM-DD para comparar
+      const hoje = new Date().toISOString().split("T")[0];
+      const consultasHoje = consultas.filter((c: any) => 
+        c.dataHora && c.dataHora.startsWith(hoje) // Adapte 'dataHora' para o nome exato do campo no seu backend
+      );
+
+      // Pegando os 3 últimos pets cadastrados (ordem decrescente de ID)
+      const recentPets = [...petsAtivos].sort((a, b) => b.id - a.id).slice(0, 3);
+
+      setStats({
+        totalPets: petsAtivos.length,
+        totalClientes: clientesAtivos.length,
+        consultasHoje: consultasHoje.length,
+        consultasAbertas: consultasAbertas.length,
+        recentPets: recentPets
+      });
+
+    } catch (error) {
+      console.error("Erro ao carregar métricas do dashboard:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    api.stats().then(setStats).finally(() => setLoading(false));
+    carregarDadosReais();
   }, []);
 
   const kpis = [

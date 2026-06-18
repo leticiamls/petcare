@@ -5,11 +5,11 @@ import { Button } from "./button";
 
 interface HeaderProps {
   title: string;
-  buttonText: string;
+  buttonText?: string;
   searchPlaceholder?: string;
   search: string;
   setSearch: (value: string) => void;
-  onActionClick: () => void;
+  onActionClick?: () => void;
 }
 
 export function Header({
