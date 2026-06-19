@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BASE_URL } from "../lib/api";
+import { api } from "../lib/api";
 import { Button } from "../components/ui/button";
 import { Header } from "../components/ui/header";
 import { User, Phone, X, Trash2, Pencil } from "lucide-react";
@@ -55,16 +55,12 @@ export default function Clientes() {
 
   const loadClientes = () => {
     setLoading(true);
-    fetch(`${BASE_URL}/clientes`, {
-      method: "GET",
-      headers: getHeaders() // 2. Correção: Injetando o Token corretamente
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error("Falha ao buscar clientes.");
-        return res.json();
+    api.clientes.getAll()
+      .then(setClientes)
+      .catch((err: unknown) => {
+        const e = err as { message: string };
+        setError(e.message || "Falha ao buscar clientes.");
       })
-      .then((dados) => setClientes(dados))
-      .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   };
   
@@ -72,7 +68,6 @@ export default function Clientes() {
     loadClientes(); 
   }, []);
 
-  // 3. Correção: Nome da variável unificado para "filtered" para bater com o HTML
   const filtered = clientes.filter((c) =>
     c.nome.toLowerCase().includes(search.toLowerCase()) ||
     c.cpf.includes(search)
@@ -103,46 +98,36 @@ export default function Clientes() {
         telefone: form.telefone.replace(/\D/g, ""),
       };
 
-      const url = editingId ? `${BASE_URL}/clientes/${editingId}` : `${BASE_URL}/clientes`;
-      const method = editingId ? "PUT" : "POST";
-
-      const resposta = await fetch(url, {
-        method: method,
-        headers: getHeaders(), // Correção: Injetando o Token corretamente
-        body: JSON.stringify(payload)
-      });
-
-      if (!resposta.ok) {
-        const errData = await resposta.json().catch(() => ({}));
-        throw new Error(errData.mensagem || "Erro ao salvar no servidor.");
+      if (editingId) {
+        await api.clientes.update(editingId, payload);
+      } else {
+        await api.clientes.create(payload);
       }
       
       await loadClientes();
       fecharModal();
       
-    } catch (err: any) {
-      setError(err.message || "Erro ao salvar cliente.");
+    } catch (err: unknown) {
+      const e = err as { message: string };
+      setError(e.message || "Erro ao guardar cliente.");
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!window.confirm("Atenção: Inativar este cliente cancelará todas as consultas abertas dos pets dele. Deseja continuar?")) return;
-    
+  const handleToggleStatus = async (cliente: Cliente) => {
     try {
-      const resposta = await fetch(`${BASE_URL}/clientes/${id}`, {
-        method: "DELETE",
-        headers: getHeaders()
-      });
-      
-      if (!resposta.ok){
-        const errData = await resposta.json().catch(() => ({}));
-        throw new Error(errData.mensagem || "Falha ao inativar cliente.");
+      if (cliente.ativo) {
+        if (!window.confirm("Atenção: Inativar este cliente cancelará todas as consultas abertas dos pets dele. Deseja continuar?")) return;
+        await api.clientes.delete(cliente.id);
+      } else {
+        if (!window.confirm("Deseja reativar este cliente?")) return;
+        await api.clientes.reativar(cliente.id);
       }
-      loadClientes();
-    } catch (err: any) {
-        alert(`Erro: ${err.message}`);    
+      loadClientes(); // Recarrega a lista para atualizar a UI
+    } catch (err: unknown) {
+      const e = err as { message: string };
+      alert(`Erro: ${e.message}`);    
     }
   };
   
@@ -172,7 +157,7 @@ export default function Clientes() {
           {filtered.map((c) => (
             <div key={c.id} className={c.ativo ? "bg-white border-4 border-cianoEscuro rounded-3xl p-6 shadow-3xl flex flex-col gap-3" : "bg-white border-4 border-cianoEscuro rounded-3xl p-6 shadow-3xl flex flex-col gap-3 opacity-60 grayscale"}>
               
-              {/* Cabeçalho do Card */}
+              {/* Cabeçalho */}
               <div className="flex items-center gap-3 border-b-2 border-ci pb-3">
                 <div className="p-2 bg-ciano rounded-lg border-2 border-cianoEscuro">
                   <User size={22} className="text-white" />
@@ -192,24 +177,25 @@ export default function Clientes() {
                 </div>
               </div>
               
-              {/* Botões do Card */}
+              {/* Botões */}
               <div className="mt-auto pt-2 flex flex-col sm:flex-row gap-2 w-full">
                 <Button 
                   variant="primary"
                   onClick={() => handleEdit(c)}
-                  className="flex-1 px-2 text-sm md:text-base hover:bg-cianoEscuro"
+                  disabled={!c.ativo} // Impede edição de clientes inativos, se desejar
+                  className="flex-1 px-2 text-sm md:text-base hover:bg-cianoEscuro disabled:opacity-50"
                 >
                   <Pencil size={16} strokeWidth={2.5} /> 
                   <span>Editar</span>
                 </Button>
 
                 <Button 
-                  variant="exclude"
-                  onClick={() => handleDelete(c.id)}
-                  className="flex-1 px-2 text-sm md:text-base hover:bg-red-900" 
+                  variant={c.ativo ? "exclude" : "primary"}
+                  onClick={() => handleToggleStatus(c)}
+                  className={`flex-1 px-2 text-sm md:text-base ${c.ativo ? "hover:bg-red-900" : "hover:bg-green-700 bg-green-600 border-green-800"}`} 
                 >
-                  <Trash2 size={16} strokeWidth={2.5} /> 
-                  <span>Inativar</span>
+                  {c.ativo ? <Trash2 size={16} strokeWidth={2.5} /> : <User size={16} strokeWidth={2.5} />} 
+                  <span>{c.ativo ? "Inativar" : "Reativar"}</span>
                 </Button>
               </div>
 

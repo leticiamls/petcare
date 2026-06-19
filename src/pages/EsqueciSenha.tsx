@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { BASE_URL } from "../lib/api";
+import { api } from "../lib/api"; // Importando a nossa central!
 import { Button } from "../components/ui/button";
 import { CardTitle } from "../components/ui/card";
 import { ArrowLeft, MailCheck } from "lucide-react";
@@ -18,30 +18,16 @@ export default function EsqueciSenha() {
     setLoading(true);
     
     try {
-      // Endpoint para solicitar a recuperação (Verifique a rota exata no seu Spring Boot)
-      const resposta = await fetch(`${BASE_URL}/auth/recuperar-senha`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "ngrok-skip-browser-warning": "true"
-        },
-        body: JSON.stringify({ email })
-      });
+      // Chamada limpa delegada para a API
+      await api.auth.recuperarSenha(email);
       
-      if (!resposta.ok) {
-        const errData = await resposta.json().catch(() => ({}));
-        throw new Error(errData.mensagem || "Falha ao solicitar recuperação.");
-      }
-
       // Se deu certo, mostramos a tela de sucesso
       setSuccess(true);
 
-    } catch (err) {
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError("Erro ao conectar com o servidor.");
-      }
+    } catch (err: unknown) {
+      // Tipagem segura padronizada
+      const eObj = err as { message: string };
+      setError(eObj.message || "Erro ao conectar com o servidor.");
     } finally {
       setLoading(false);
     }
