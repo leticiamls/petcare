@@ -6,13 +6,20 @@ import { Header } from "../components/ui/header";
 import { X, CheckCircle, XCircle, Stethoscope, CalendarDays } from "lucide-react";
 
 // Tipagens
-export type Consulta = { id: number; petId: number; veterinarioId: number; data: string; status: "ABERTA" | "FINALIZADA" | "CANCELADA"; descricao: string; sintomas: number[]; medicamentos: number[]; };
+// sintomas e medicamentos agora são arrays de nomes (string), não IDs.
+// O backend faz "find or create" no catálogo a partir do nome enviado.
+export type Consulta = { id: number; petId: number; veterinarioId: number; data: string; status: "ABERTA" | "FINALIZADA" | "CANCELADA"; descricao: string; sintomas: string[]; medicamentos: string[]; };
 export type Pet = { id: number; nome: string; especie: string; donoId: number; ativo: boolean; };
 export type Veterinario = { id: number; nome: string; crmv: string; especialidade: string; ativo: boolean; };
-export type Sintoma = { id: number; nome: string; };
-export type Medicamento = { id: number; nome: string; dose: string; };
 
 type StatusFilter = "TODAS" | "ABERTA" | "FINALIZADA" | "CANCELADA";
+
+// Opções fixas exibidas como checkbox no modal de prontuário (VET).
+// O backend faz "find or create": se o nome já existir no catálogo, reaproveita;
+// se não existir, cria. Por isso aceitamos qualquer string aqui, incluindo
+// o que for digitado no campo "Outro".
+const DIAGNOSTICOS_FIXOS = ["Dermatite", "Oitite", "Gastroenterite", "Piometria", "Infecção Urinária", "Alergia Alimentar"];
+const REMEDIOS_FIXOS = ["Dipirona", "Probióticos", "Vitaminas", "Amoxicilina", "Omeprazol"];
 
 const STATUS_BADGE: Record<Consulta["status"], string> = {
   ABERTA: "bg-yellow-300 border-yellow-600 text-yellow-900",
@@ -27,11 +34,9 @@ export default function Consultas() {
   const [consultas, setConsultas] = useState<Consulta[]>([]);
   const [pets, setPets] = useState<Pet[]>([]);
   const [vets, setVets] = useState<Veterinario[]>([]);
-  const [sintomas, setSintomas] = useState<Sintoma[]>([]);
-  const [medicamentos, setMedicamentos] = useState<Medicamento[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [statusFilter] = useState<StatusFilter>("TODAS");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("TODAS");
 
   // Modal nova consulta
   const [novaModal, setNovaModal] = useState(false);
@@ -44,25 +49,35 @@ export default function Consultas() {
 const [editModal, setEditModal] = useState<Consulta | null>(null);
 const [editForm, setEditForm] = useState({
   descricao: "",
-  sintomas: [] as number[], // IDs dos sintomas
-  medicamentos: [] as number[] // IDs dos medicamentos
+  sintomas: [] as string[], // nomes digitados pelo veterinário
+  medicamentos: [] as string[] // nomes digitados pelo veterinário
 });
+const [outroDiagnostico, setOutroDiagnostico] = useState("");
+const [outroRemedio, setOutroRemedio] = useState("");
 
   const load = async () => {
     try {
-      const [resC, resP, resV, resS, resM] = await Promise.all([
-        api.consultas.getAll(role === "VET" ? vetId : null),
-        api.pets.getAll(),
-        api.veterinarios.getAll(),
-        api.sintomas.getAll(),
-        api.medicamentos.getAll(),
+      // Cada chamada tem seu próprio .catch() para que a falha de uma
+      // (ex: GET /veterinarios dá 403 para FUNCIONARIO, conforme a spec)
+      // não derrube as outras que funcionariam normalmente.
+      const [resC, resP, resV] = await Promise.all([
+        api.consultas.getAll(role === "VET" ? vetId : null).catch((err) => {
+          console.error("Erro ao buscar consultas:", err);
+          return [];
+        }),
+        api.pets.getAll().catch((err) => {
+          console.error("Erro ao buscar pets:", err);
+          return [];
+        }),
+        api.veterinarios.getAll().catch((err) => {
+          console.error("Erro ao buscar veterinários:", err);
+          return [];
+        }),
       ]);
 
       setConsultas(resC);
       setPets(resP);
       setVets(resV);
-      setSintomas(resS);
-      setMedicamentos(resM);
     } catch (err) {
       console.error("Erro ao carregar dados", err);
     } finally {
@@ -72,10 +87,11 @@ const [editForm, setEditForm] = useState({
 
   useEffect(() => { load(); }, []);
 
-  const petNome = (id: number) => pets.find((p) => p.id === id)?.nome ?? "—";
+  const petNome = (id: number) => pets.find((p) => p.id === id)?.nome ?? `Pet #${id} (inativo)`;
   const vetNome = (id: number) => vets.find((v) => v.id === id)?.nome ?? "—";
-  const sintomasNomes = (ids: number[]) => ids.map((id) => sintomas.find((s) => s.id === id)?.nome).filter(Boolean).join(", ") || "—";
-  const medsNomes = (ids: number[]) => ids.map((id) => medicamentos.find((m) => m.id === id)?.nome).filter(Boolean).join(", ") || "—";
+  // sintomas/medicamentos já vêm como nomes (string[]); não precisam de lookup.
+  const sintomasNomes = (nomes: string[]) => (nomes?.length ? nomes.join(", ") : "—");
+  const medsNomes = (nomes: string[]) => (nomes?.length ? nomes.join(", ") : "—");
 
   const filtered = consultas.filter((c) => {
     const matchSearch = petNome(c.petId).toLowerCase().includes(search.toLowerCase()) ||
@@ -123,36 +139,75 @@ const [editForm, setEditForm] = useState({
 
   // ── Abrir modal edição ──
   const openEdit = (c: Consulta) => {
-  setEditForm({ 
-    descricao: c.descricao, 
-    sintomas: c.sintomas || [], 
-    medicamentos: c.medicamentos || [] 
-  });
-  setEditModal(c);
-};
+    const sintomasSalvos = c.sintomas || [];
+    const medicamentosSalvos = c.medicamentos || [];
 
+    // Itens que batem com a lista fixa marcam o checkbox; o que não bate
+    // (foi digitado em "Outro" numa edição anterior) volta pro campo de texto.
+    const diagnosticosFixosMarcados = sintomasSalvos.filter((s) => DIAGNOSTICOS_FIXOS.includes(s));
+    const outroDiagnosticoSalvo = sintomasSalvos.filter((s) => !DIAGNOSTICOS_FIXOS.includes(s)).join(", ");
 
-  const toggleSel = (id: number, list: number[], setter: (v: number[]) => void) => {
-    setter(list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
+    const remediosFixosMarcados = medicamentosSalvos.filter((m) => REMEDIOS_FIXOS.includes(m));
+    const outroRemedioSalvo = medicamentosSalvos.filter((m) => !REMEDIOS_FIXOS.includes(m)).join(", ");
+
+    setEditForm({
+      descricao: c.descricao,
+      sintomas: diagnosticosFixosMarcados,
+      medicamentos: remediosFixosMarcados
+    });
+    setOutroDiagnostico(outroDiagnosticoSalvo);
+    setOutroRemedio(outroRemedioSalvo);
+    setEditModal(c);
+  };
+
+  const toggleItem = (nome: string, list: string[], setter: (v: string[]) => void) => {
+    setter(list.includes(nome) ? list.filter((n) => n !== nome) : [...list, nome]);
   };
 
   // ── Salvar edição (PUT) ──
   const handleSaveEdit = async () => {
   try {
-    const res = await fetch(`${BASE_URL}/api/consultas/${editModal!.id}`, {
+    // Combina os checkboxes marcados com o texto digitado em "Outro"
+    // (separado por vírgula, caso o veterinário liste mais de um item ali).
+    const sintomasFinais = [
+      ...editForm.sintomas,
+      ...outroDiagnostico.split(",").map((s) => s.trim()).filter(Boolean)
+    ];
+    const medicamentosFinais = [
+      ...editForm.medicamentos,
+      ...outroRemedio.split(",").map((s) => s.trim()).filter(Boolean)
+    ];
+
+    // A spec define Consulta com todos esses campos juntos (id, data, status,
+    // petId, veterinarioId, descricao, sintomas, medicamentos). Mandamos o
+    // objeto completo no PUT, mesclando os campos originais de editModal com
+    // os que o veterinário está editando agora, para não correr o risco do
+    // backend receber data/status/petId/veterinarioId como null.
+    const payload = {
+      ...editModal,
+      descricao: editForm.descricao,
+      sintomas: sintomasFinais,
+      medicamentos: medicamentosFinais,
+    };
+
+    const res = await fetch(`${BASE_URL}/consultas/${editModal!.id}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${auth.getToken()}`
       },
-      body: JSON.stringify(editForm)
+      body: JSON.stringify(payload)
     });
     
-    if (!res.ok) throw new Error("Erro ao salvar prontuário");
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.mensagem || "Erro ao salvar prontuário");
+    }
     load(); // Recarrega a lista
     setEditModal(null);
-  } catch (err) {
-    alert("Erro ao salvar!");
+  } catch (err: unknown) {
+    const eObj = err as { message: string };
+    alert(eObj.message || "Erro ao salvar!");
   }
 };
 
@@ -183,6 +238,23 @@ const handleFinalizar = async (id: number) => {
         setSearch={setSearch}
         onActionClick={role === "FUNCIONARIO" || role === "ADMIN" ? () => setNovaModal(true) : undefined} 
       />
+
+      {/* Filtro por status */}
+      <div className="flex gap-2 flex-wrap">
+        {(["TODAS", "ABERTA", "FINALIZADA", "CANCELADA"] as StatusFilter[]).map((s) => (
+          <button
+            key={s}
+            onClick={() => setStatusFilter(s)}
+            className={`text-xs font-black px-4 py-2 rounded-full border-2 transition-all ${
+              statusFilter === s
+                ? "bg-cianoEscuro text-white border-cianoEscuro"
+                : "bg-white text-black/50 border-black/20 hover:border-cianoEscuro hover:text-cianoEscuro"
+            }`}
+          >
+            {s === "TODAS" ? "Todas" : s.charAt(0) + s.slice(1).toLowerCase()}
+          </button>
+        ))}
+      </div>
       
       {loading ? (
         <div className="flex flex-col gap-4">
@@ -300,14 +372,65 @@ const handleFinalizar = async (id: number) => {
           onChange={e => setEditForm({...editForm, descricao: e.target.value})}
         />
 
-        {/* Sintomas e Medicamentos (Exemplo com Checkboxes ou Seleção) */}
-        <div className="grid grid-cols-2 gap-2">
-           {/* Aqui você renderiza a lista de sintomas que vem do backend */}
+        {/* Diagnósticos (mapeado para o campo sintomas da Consulta) */}
+        <div className="flex flex-col gap-2">
+          <label className="text-base font-bold text-ciano">Diagnósticos</label>
+          <div className="border-2 border-cianoEscuro rounded-xl p-3 flex flex-col gap-2">
+            {DIAGNOSTICOS_FIXOS.map((nome) => (
+              <label key={nome} className="flex items-center gap-2 text-sm font-texto cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={editForm.sintomas.includes(nome)}
+                  onChange={() => toggleItem(nome, editForm.sintomas, (v) => setEditForm({ ...editForm, sintomas: v }))}
+                  className="w-4 h-4 accent-ciano"
+                />
+                {nome}
+              </label>
+            ))}
+            <label className="flex items-center gap-2 text-sm font-texto">
+              <span className="shrink-0">Outro:</span>
+              <input
+                type="text"
+                value={outroDiagnostico}
+                onChange={(e) => setOutroDiagnostico(e.target.value)}
+                placeholder="separar por vírgula se mais de um"
+                className="flex-1 border-b-2 border-cianoEscuro/40 outline-none focus:border-cianoEscuro bg-transparent py-1"
+              />
+            </label>
+          </div>
+        </div>
+
+        {/* Remédios Prescritos (mapeado para o campo medicamentos da Consulta) */}
+        <div className="flex flex-col gap-2">
+          <label className="text-base font-bold text-ciano">Remédios Prescritos</label>
+          <div className="border-2 border-cianoEscuro rounded-xl p-3 flex flex-col gap-2">
+            {REMEDIOS_FIXOS.map((nome) => (
+              <label key={nome} className="flex items-center gap-2 text-sm font-texto cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={editForm.medicamentos.includes(nome)}
+                  onChange={() => toggleItem(nome, editForm.medicamentos, (v) => setEditForm({ ...editForm, medicamentos: v }))}
+                  className="w-4 h-4 accent-ciano"
+                />
+                {nome}
+              </label>
+            ))}
+            <label className="flex items-center gap-2 text-sm font-texto">
+              <span className="shrink-0">Outro:</span>
+              <input
+                type="text"
+                value={outroRemedio}
+                onChange={(e) => setOutroRemedio(e.target.value)}
+                placeholder="separar por vírgula se mais de um"
+                className="flex-1 border-b-2 border-cianoEscuro/40 outline-none focus:border-cianoEscuro bg-transparent py-1"
+              />
+            </label>
+          </div>
         </div>
       </div>
 
       <div className="flex gap-2 mt-6">
-        <Button onClick={() => setEditModal(null)} variant="secondary">Cancelar</Button>
+        <Button onClick={() => { setEditModal(null); setOutroDiagnostico(""); setOutroRemedio(""); }} variant="secondary">Cancelar</Button>
         <Button onClick={handleSaveEdit} className="flex-1">Salvar Atendimento</Button>
       </div>
     </div>

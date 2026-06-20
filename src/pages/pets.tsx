@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Button } from "../components/ui/button";
 import { Header } from "../components/ui/header";
-import { Dog, Cat, X, Trash2, Rabbit, ShieldAlert } from "lucide-react";
-import { BASE_URL } from "../lib/api";
+import { Dog, Cat, X, Trash2, RotateCcw, Rabbit, ShieldAlert } from "lucide-react";
+import { api } from "../lib/api";
 import { auth } from "../lib/auth"; // 🎯 Importando o utilitário real de autenticação
 
 export interface Pet {
@@ -58,24 +58,14 @@ export default function Pets() {
   // 1. Pegamos o perfil do usuário logado
   const userRole = auth.getRole();
 
-  // 2. Montamos os Headers com o JWT
-  const getHeaders = () => ({
-    "Content-Type": "application/json",
-    "ngrok-skip-browser-warning": "true",
-    "Authorization": `Bearer ${auth.getToken()}`
-  });
-
   const load = async () => {
     setLoading(true);
     try {
-      // Dispara as requisições em paralelo para a API real
-      const [resPets, resClientes] = await Promise.all([
-        fetch(`${BASE_URL}/pets`, { headers: getHeaders() }).catch(() => null),
-        fetch(`${BASE_URL}/clientes`, { headers: getHeaders() }).catch(() => null)
+      // Dispara as requisições em paralelo usando o api central
+      const [petsData, clientesData] = await Promise.all([
+        api.pets.getAll().catch(() => []),
+        api.clientes.getAll().catch(() => [])
       ]);
-
-      const petsData = resPets?.ok ? await resPets.json() : [];
-      const clientesData = resClientes?.ok ? await resClientes.json() : [];
 
       setPets(petsData);
       // Filtra apenas os clientes ativos para aparecerem no select de Tutor
@@ -125,22 +115,13 @@ export default function Pets() {
     setError(null);
     setSaving(true);
     try {
-      const resposta = await fetch(`${BASE_URL}/pets`, {
-        method: "POST",
-        headers: getHeaders(),
-        body: JSON.stringify({
-          nome: form.nome,
-          especie: form.especie,
-          raca: form.raca,
-          dataNascimento: form.dataNascimento,
-          clienteId: Number(form.clienteId),
-        })
+      await api.pets.create({
+        nome: form.nome,
+        especie: form.especie,
+        raca: form.raca,
+        dataNascimento: form.dataNascimento,
+        clienteId: Number(form.clienteId),
       });
-
-      if (!resposta.ok) {
-        const errData = await resposta.json().catch(() => ({}));
-        throw new Error(errData.mensagem || "Erro ao cadastrar pet.");
-      }
 
       await load();
       setModal(false);
@@ -154,17 +135,29 @@ export default function Pets() {
 
   const handleDelete = async (id: number) => {
     if (!window.confirm("Atenção: Inativar este pet cancelará automaticamente suas consultas abertas. Deseja continuar?")) return;
-    
-    try {
-      const resposta = await fetch(`${BASE_URL}/pets/${id}`, {
-        method: "DELETE", // Se o seu back usar PATCH para inativar, altere aqui
-        headers: getHeaders()
-      });
 
-      if (!resposta.ok) throw new Error("Erro ao inativar pet");
-      load();
+    try {
+      await api.pets.delete(id);
+      // Não chamamos load() aqui de propósito: o GET /pets só retorna pets
+      // ativos (contrato da API), então recarregar faria esse card desaparecer
+      // da tela. Em vez disso, marcamos como inativo só no estado local, para
+      // o card continuar visível (cinza) e permitir reativar pelo mesmo card.
+      setPets((prev) => prev.map((p) => (p.id === id ? { ...p, ativo: false } : p)));
     } catch (err) {
-      alert("Falha ao inativar o pet. Verifique sua conexão.");
+      const eObj = err as { message: string };
+      alert(eObj.message || "Falha ao inativar o pet. Verifique sua conexão.");
+    }
+  };
+
+  const handleReativar = async (id: number) => {
+    if (!window.confirm("Reativar este pet?")) return;
+
+    try {
+      await api.pets.reativar(id);
+      setPets((prev) => prev.map((p) => (p.id === id ? { ...p, ativo: true } : p)));
+    } catch (err) {
+      const eObj = err as { message: string };
+      alert(eObj.message || "Falha ao reativar o pet. Verifique sua conexão.");
     }
   };
 
@@ -216,12 +209,20 @@ export default function Pets() {
                 <span className="text-xs font-bold text-cianoEscuro uppercase self-end">
                   Nasc.: {new Date(pet.dataNascimento + "T00:00:00").toLocaleDateString("pt-BR")}
                 </span>
-                <Button variant="exclude"
-                  disabled={pet.ativo === false}
-                  onClick={() => handleDelete(pet.id)} 
-                >
-                  <Trash2 size={14} /> {pet.ativo === false ? "Inativo" : "Inativar"}
-                </Button>
+                {pet.ativo === false ? (
+                  <Button variant="secondary"
+                    onClick={() => handleReativar(pet.id)}
+                    className="border-green-600 text-green-700 hover:bg-green-50"
+                  >
+                    <RotateCcw size={14} /> Reativar
+                  </Button>
+                ) : (
+                  <Button variant="exclude"
+                    onClick={() => handleDelete(pet.id)}
+                  >
+                    <Trash2 size={14} /> Inativar
+                  </Button>
+                )}
               </div>
             </div>
           ))}

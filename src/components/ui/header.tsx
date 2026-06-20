@@ -35,9 +35,11 @@ export function Header({
           containerClassName="md:w-[320px]" 
         />
 
-        <Button onClick={onActionClick}>
-          <Plus size={20} strokeWidth={2.5} /> {buttonText}
-        </Button>
+        {buttonText && (
+          <Button onClick={onActionClick}>
+            <Plus size={20} strokeWidth={2.5} /> {buttonText}
+          </Button>
+        )}
         
       </div>
     </header>

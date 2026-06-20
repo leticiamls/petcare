@@ -89,6 +89,50 @@ export const api = {
       const res = await fetch(`${BASE_URL}/pets`, { headers: getHeaders() });
       if (!res.ok) throw new Error("Falha ao buscar pets.");
       return res.json();
+    },
+    create: async (payload: any) => {
+      const res = await fetch(`${BASE_URL}/pets`, {
+        method: "POST",
+        headers: getHeaders(),
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.mensagem || "Erro ao cadastrar pet.");
+      }
+      return res.json();
+    },
+    update: async (id: number, payload: any) => {
+      const res = await fetch(`${BASE_URL}/pets/${id}`, {
+        method: "PUT",
+        headers: getHeaders(),
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.mensagem || "Erro ao atualizar pet.");
+      }
+      return res.json();
+    },
+    delete: async (id: number) => {
+      const res = await fetch(`${BASE_URL}/pets/${id}`, {
+        method: "DELETE",
+        headers: getHeaders()
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.mensagem || "Erro ao inativar pet.");
+      }
+    },
+    reativar: async (id: number) => {
+      const res = await fetch(`${BASE_URL}/pets/ativar/${id}`, {
+        method: "PATCH",
+        headers: getHeaders()
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.mensagem || "Erro ao reativar pet.");
+      }
     }
   },
 
@@ -193,6 +237,6 @@ export const api = {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.mensagem || "Erro ao reativar utilizador.");
       }
+    }
   }
-}
-}
+};

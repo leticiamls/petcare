@@ -126,9 +126,10 @@ export default function Equipe() {
     e.preventDefault();
     setError(null);
     setSaving(true);
-    try {
-      let veterinarioId: number | null = null;
+    let veterinarioId: number | null = null;
+    let vetJaCriado = false;
 
+    try {
       // Se for VET, cria o Veterinário na API primeiro
       if (form.role === "VET") {
         if (
@@ -148,6 +149,7 @@ export default function Equipe() {
         });
 
         veterinarioId = vetCriado.id;
+        vetJaCriado = true;
       }
 
       // Agora cria o usuário vinculado
@@ -164,7 +166,19 @@ export default function Equipe() {
       setForm(emptyForm);
     } catch (err: unknown) {
       const eObj = err as { message: string };
-      setError(eObj.message || "Erro ao salvar.");
+      if (vetJaCriado) {
+        // O registro de Veterinario já foi criado no backend, mas a criação
+        // do usuário vinculado falhou — ficou um Veterinario sem usuário.
+        // O frontend não tem permissão para desfazer isso (sem rota de delete),
+        // então avisamos explicitamente para evitar dados órfãos silenciosos.
+        setError(
+          `Atenção: o registro de veterinário (CRMV ${form.veterinarioCrmv}) já foi criado, mas o usuário não. ` +
+          `Erro: ${eObj.message || "Erro ao salvar."} ` +
+          `Avise a equipe de backend ou tente criar o usuário novamente reaproveitando esse veterinário.`
+        );
+      } else {
+        setError(eObj.message || "Erro ao salvar.");
+      }
     } finally {
       setSaving(false);
     }
@@ -186,7 +200,8 @@ export default function Equipe() {
       }
       load(); // Recarrega a lista para atualizar a interface
     } catch (err: unknown) {
-      alert("Falha ao alterar o estado do utilizador.");
+      const eObj = err as { message: string };
+      alert(eObj.message || "Falha ao alterar o estado do utilizador.");
     }
   };
 

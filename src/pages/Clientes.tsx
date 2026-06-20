@@ -120,11 +120,20 @@ export default function Clientes() {
       if (cliente.ativo) {
         if (!window.confirm("Atenção: Inativar este cliente cancelará todas as consultas abertas dos pets dele. Deseja continuar?")) return;
         await api.clientes.delete(cliente.id);
+        // Não recarregamos do servidor aqui de propósito: o GET /clientes só
+        // retorna clientes ativos (contrato da API), então buscar de novo
+        // faria esse card desaparecer da tela. Atualizamos só o estado local
+        // para o card continuar visível (cinza) e permitir reativar por ele.
+        setClientes((prev) =>
+          prev.map((c) => (c.id === cliente.id ? { ...c, ativo: false } : c))
+        );
       } else {
         if (!window.confirm("Deseja reativar este cliente?")) return;
         await api.clientes.reativar(cliente.id);
+        // Aqui sim recarregamos: o cliente volta a ser ativo de verdade no
+        // backend, então a próxima busca em GET /clientes já vai trazê-lo.
+        loadClientes();
       }
-      loadClientes(); // Recarrega a lista para atualizar a UI
     } catch (err: unknown) {
       const e = err as { message: string };
       alert(`Erro: ${e.message}`);    

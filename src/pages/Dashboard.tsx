@@ -14,6 +14,17 @@ export interface Pet {
   ativo: boolean;
 }
 
+interface Cliente {
+  id: number;
+  ativo: boolean;
+}
+
+interface ConsultaResumo {
+  id: number;
+  data: string;
+  status: "ABERTA" | "FINALIZADA" | "CANCELADA";
+}
+
 const PetIcon = ({ especie }: { especie: string }) => {
   if (especie.toLowerCase() === "gato") return <Cat size={28} />;
   if (especie.toLowerCase() === "cachorro") return <Dog size={28} />;
@@ -54,12 +65,12 @@ export default function Dashboard() {
 
       // 4. Calculando as métricas no Frontend
       const petsAtivos = pets.filter((p: Pet) => p.ativo);
-      const clientesAtivos = clientes.filter((c: any) => c.ativo);
-      const consultasAbertas = consultas.filter((c: any) => c.status === "ABERTA");
+      const clientesAtivos = clientes.filter((c: Cliente) => c.ativo);
+      const consultasAbertas = consultas.filter((c: ConsultaResumo) => c.status === "ABERTA");
 
       // Pegando a data de hoje no formato YYYY-MM-DD para comparar
       const hoje = new Date().toISOString().split("T")[0];
-      const consultasHoje = consultas.filter((c: any) => 
+      const consultasHoje = consultas.filter((c: ConsultaResumo) => 
         c.data && c.data.startsWith(hoje) // Modificado para .data, de acordo com Consulta
       );
 
