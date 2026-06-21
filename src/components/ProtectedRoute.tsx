@@ -6,5 +6,3 @@ export const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
   if (!auth.isAuthenticated()) return <Navigate to="/" replace />;
   return children;
 };
-
-

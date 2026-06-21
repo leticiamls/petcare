@@ -1,18 +1,18 @@
 @import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=Chicle&family=Fredoka:wght@300..700&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Chicle&family=Fredoka:wght@300..700&display=swap");
 
 @tailwind utilities;
 
 @theme {
   --color-ciano: #2fb295;
-  --color-cianoEscuro: #163D34; 
-  --color-vermelho: #AE4032;
-  --color-vermelhoClaro: #D8B8B3;
-  --color-cinza: #97A8A4;
-  --color-bege: #F2E5D5;
-  --color-begeEscuro: #E0CDB5;
-  --color-whitePet: #EDEAE6;
-  --color-blackPet: #191A23;
+  --color-cianoEscuro: #163d34;
+  --color-vermelho: #ae4032;
+  --color-vermelhoClaro: #d8b8b3;
+  --color-cinza: #97a8a4;
+  --color-bege: #f2e5d5;
+  --color-begeEscuro: #e0cdb5;
+  --color-whitePet: #edeae6;
+  --color-blackPet: #191a23;
   --shadow-3xl: 5px 4px 0 0 rgba(22, 61, 52, 87);
   --font-titulo: "Chicle", serif;
   --font-texto: "Fredoka", sans-serif;

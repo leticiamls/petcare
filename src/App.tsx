@@ -8,7 +8,8 @@ import Clientes from "./pages/Clientes";
 import Consultas from "./pages/Consultas";
 import Equipe from "./pages/Equipe";
 import EsqueciSenha from "./pages/EsqueciSenha";
-// import RedefinirSenha from "./pages/RedefinirSenha"; // Deixei comentado para quando formos criar!
+import RedefinirSenha from "./pages/RedefinirSenha";
+
 
 function MainLayout() {
   return (
@@ -25,18 +26,21 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* 🔓 ROTAS PÚBLICAS (Acesso livre) */}
         <Route path="/" element={<Login />} />
         <Route path="/esqueci-senha" element={<EsqueciSenha />} />
-        {/* <Route path="/redefinir-senha" element={<RedefinirSenha />} /> */}
-
-        {/* 🔒 ROTAS PROTEGIDAS (Exigem Login e renderizam a Sidebar) */}
-        <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
-          <Route path="/dashboard"    element={<Dashboard />} />
-          <Route path="/pets"         element={<Pets />} />
-          <Route path="/clientes"     element={<Clientes />} />
-          <Route path="/consultas"    element={<Consultas />} />
-          <Route path="/equipe"       element={<Equipe />} />
+        <Route path="/redefinir-senha" element={<RedefinirSenha />} />
+        <Route
+          element={
+            <ProtectedRoute>
+              <MainLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/pets" element={<Pets />} />
+          <Route path="/clientes" element={<Clientes />} />
+          <Route path="/consultas" element={<Consultas />} />
+          <Route path="/equipe" element={<Equipe />} />
         </Route>
       </Routes>
     </BrowserRouter>

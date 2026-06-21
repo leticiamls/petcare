@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { api } from "../lib/api"; // Importando apenas a nossa central!
+import { api } from "../lib/api";
 import { auth, type Role } from "../lib/auth";
 import { Button } from "../components/ui/button";
 import {
@@ -11,6 +11,7 @@ import {
   Trash2,
   Search,
 } from "lucide-react";
+import { maskPhone } from "./Clientes";
 
 interface UserRow {
   id: number;
@@ -53,17 +54,6 @@ const emptyForm: FormState = {
   veterinarioTelefone: "",
 };
 
-// 🎯 A MÁSCARA DE TELEFONE
-const maskPhone = (value: string) => {
-  let v = value.replace(/\D/g, ""); // Remove tudo o que não é dígito
-  if (v.length > 11) v = v.slice(0, 11); // Limita a 11 dígitos
-  if (v.length > 10) return v.replace(/^(\d{2})(\d{5})(\d{4}).*/, "($1) $2-$3");
-  if (v.length > 6)
-    return v.replace(/^(\d{2})(\d{4})(\d{0,4}).*/, "($1) $2-$3");
-  if (v.length > 2) return v.replace(/^(\d{2})(\d{0,5})/, "($1) $2");
-  return v;
-};
-
 export default function Equipe() {
   const [usuarios, setUsuarios] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -73,7 +63,6 @@ export default function Equipe() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Verifica o perfil logo no topo
   const currentUserRole = auth.getRole();
   const currentUsername = auth.getUsername();
 
@@ -97,7 +86,6 @@ export default function Equipe() {
     }
   }, [currentUserRole]);
 
-  // 🔒 BARREIRA DE SEGURANÇA: Apenas ADMIN passa!
   if (currentUserRole !== "ADMIN") {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center p-8">
@@ -130,7 +118,6 @@ export default function Equipe() {
     let vetJaCriado = false;
 
     try {
-      // Se for VET, cria o Veterinário na API primeiro
       if (form.role === "VET") {
         if (
           !form.veterinarioNome ||
@@ -145,14 +132,13 @@ export default function Equipe() {
         const vetCriado = await api.veterinarios.create({
           nome: form.veterinarioNome,
           crmv: form.veterinarioCrmv,
-          telefone: form.veterinarioTelefone.replace(/\D/g, ""), // Limpa a máscara
+          telefone: form.veterinarioTelefone.replace(/\D/g, ""),
         });
 
         veterinarioId = vetCriado.id;
         vetJaCriado = true;
       }
 
-      // Agora cria o usuário vinculado
       await api.usuarios.create({
         username: form.username,
         email: form.email,
@@ -167,14 +153,10 @@ export default function Equipe() {
     } catch (err: unknown) {
       const eObj = err as { message: string };
       if (vetJaCriado) {
-        // O registro de Veterinario já foi criado no backend, mas a criação
-        // do usuário vinculado falhou — ficou um Veterinario sem usuário.
-        // O frontend não tem permissão para desfazer isso (sem rota de delete),
-        // então avisamos explicitamente para evitar dados órfãos silenciosos.
         setError(
           `Atenção: o registro de veterinário (CRMV ${form.veterinarioCrmv}) já foi criado, mas o usuário não. ` +
-          `Erro: ${eObj.message || "Erro ao salvar."} ` +
-          `Avise a equipe de backend ou tente criar o usuário novamente reaproveitando esse veterinário.`
+            `Erro: ${eObj.message || "Erro ao salvar."} ` +
+            `Avise a equipe de backend ou tente criar o usuário novamente reaproveitando esse veterinário.`,
         );
       } else {
         setError(eObj.message || "Erro ao salvar.");
@@ -198,14 +180,13 @@ export default function Equipe() {
         if (!window.confirm("Pretendes reativar este utilizador?")) return;
         await api.usuarios.reativar(usuario.id);
       }
-      load(); // Recarrega a lista para atualizar a interface
+      load();
     } catch (err: unknown) {
       const eObj = err as { message: string };
       alert(eObj.message || "Falha ao alterar o estado do utilizador.");
     }
   };
 
-  // 🎯 O HELPER "FIELD" COM SUPORTE A MÁSCARAS
   const field = (
     label: string,
     name: keyof FormState,
@@ -232,7 +213,6 @@ export default function Equipe() {
 
   return (
     <div className="flex flex-col gap-8">
-      {/* HEADER E A BARRA DE BUSCA */}
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-ciano font-texto font-semibold text-5xl p-3">
@@ -323,7 +303,6 @@ export default function Equipe() {
         </div>
       )}
 
-      {/* Modal */}
       {modal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="relative flex flex-col gap-5 p-8 bg-bege border-4 border-cianoEscuro shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] rounded-[2rem] w-full max-w-md font-texto max-h-[90vh] overflow-y-auto">
@@ -361,7 +340,6 @@ export default function Equipe() {
                 </select>
               </div>
 
-              {/* Campos extras quando role = VET */}
               {form.role === "VET" && (
                 <div className="flex flex-col gap-4 border-2 border-dashed border-ciano/50 rounded-2xl p-4 bg-white/40">
                   <p className="text-xs font-bold text-ciano uppercase tracking-wider">
@@ -375,7 +353,6 @@ export default function Equipe() {
                   )}
                   {field("CRMV", "veterinarioCrmv", "text", "CRMV-CE 00000")}
 
-                  {/* 🎯 AQUI PASSAMOS A FUNÇÃO DE MÁSCARA! */}
                   {field(
                     "Telefone",
                     "veterinarioTelefone",

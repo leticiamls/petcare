@@ -1,4 +1,3 @@
-import * as React from "react";
 import { Plus } from "lucide-react";
 import { SearchBar } from "./search";
 import { Button } from "./button";
